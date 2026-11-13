@@ -278,7 +278,7 @@ export function filterReferenceEntries(
   const langSet =
     activeLanguages.length > 0
       ? activeLanguages
-      : (['sql', 'java', 'cpp', 'python', 'javascript'] as LanguageId[]);
+      : (['sql', 'java', 'cpp', 'python', 'javascript', 'ruby'] as LanguageId[]);
 
   return entries.filter((entry) => {
     if (category !== 'All' && entry.category !== category) {
@@ -325,6 +325,7 @@ const VALID_LANGUAGES: Set<LanguageId> = new Set([
   'cpp',
   'python',
   'javascript',
+  'ruby',
 ]);
 
 export function validatePersonalizationInput(
@@ -333,7 +334,7 @@ export function validatePersonalizationInput(
   const errors: Partial<Record<keyof PersonalizationRequest, string>> = {};
 
   if (!VALID_LANGUAGES.has(input.language)) {
-    errors.language = 'Select one of the five supported languages.';
+    errors.language = 'Select one of the supported languages.';
   }
 
   if (input.priorBackground.trim().length > 300) {

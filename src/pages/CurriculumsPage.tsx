@@ -94,55 +94,49 @@ export function CurriculumsPage() {
           </div>
         </Link>
 
-        <div className="relative flex items-center gap-3 overflow-hidden rounded-2xl border border-slate-200 bg-white p-4">
-          <Flame
-            className={`h-6 w-6 shrink-0 ${
-              stats.currentStreak > 0
-                ? 'fill-amber-500/20 text-amber-500'
-                : 'text-slate-400'
-            }`}
-            aria-hidden="true"
-          />
+        <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4">
           <div className="relative z-10">
             <div className="text-xs font-semibold text-slate-500">Streak</div>
-            <div className="font-mono text-sm font-bold text-slate-950 tabular-nums">
+            <div className="mt-0.5 font-mono text-sm font-bold text-slate-950 tabular-nums">
               {stats.currentStreak} {stats.currentStreak === 1 ? 'day' : 'days'}
             </div>
           </div>
           <Flame
             aria-hidden="true"
-            className="pointer-events-none absolute -right-2 -bottom-2 h-14 w-14 -rotate-12 text-amber-500 opacity-[0.09]"
+            className={`pointer-events-none absolute -right-2 -bottom-2 h-14 w-14 -rotate-12 ${
+              stats.currentStreak > 0
+                ? 'fill-amber-500/20 text-amber-500 opacity-30'
+                : 'text-slate-400 opacity-20'
+            }`}
           />
         </div>
 
-        <div className="relative flex items-center gap-3 overflow-hidden rounded-2xl border border-slate-200 bg-white p-4">
-          <Layers className="h-6 w-6 shrink-0 text-blue-600" aria-hidden="true" />
+        <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4">
           <div className="relative z-10">
             <div className="text-xs font-semibold text-slate-500">Modules</div>
-            <div className="font-mono text-sm font-bold text-slate-950 tabular-nums">
+            <div className="mt-0.5 font-mono text-sm font-bold text-slate-950 tabular-nums">
               {stats.completedModules}/{stats.totalModules}
             </div>
           </div>
           <Layers
             aria-hidden="true"
-            className="pointer-events-none absolute -right-2 -bottom-2 h-14 w-14 -rotate-12 text-blue-600 opacity-[0.08]"
+            className="pointer-events-none absolute -right-2 -bottom-2 h-14 w-14 -rotate-12 text-blue-600 opacity-20"
           />
         </div>
 
         <Link
           to="/app/certificates"
-          className="btn-juice relative flex items-center gap-3 overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 hover:border-blue-400"
+          className="btn-juice relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 hover:border-blue-400"
         >
-          <Award className="h-6 w-6 shrink-0 text-amber-500" aria-hidden="true" />
           <div className="relative z-10">
             <div className="text-xs font-semibold text-slate-500">Certificates</div>
-            <div className="font-mono text-sm font-bold text-slate-950 tabular-nums">
+            <div className="mt-0.5 font-mono text-sm font-bold text-slate-950 tabular-nums">
               {certificates.length} earned
             </div>
           </div>
           <Award
             aria-hidden="true"
-            className="pointer-events-none absolute -right-2 -bottom-2 h-14 w-14 -rotate-12 text-amber-500 opacity-[0.09]"
+            className="pointer-events-none absolute -right-2 -bottom-2 h-14 w-14 -rotate-12 text-amber-500 opacity-25"
           />
         </Link>
       </section>

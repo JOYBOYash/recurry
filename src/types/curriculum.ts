@@ -1,4 +1,4 @@
-export type LanguageId = 'sql' | 'java' | 'cpp' | 'python' | 'javascript';
+export type LanguageId = 'sql' | 'java' | 'cpp' | 'python' | 'javascript' | 'ruby';
 
 export type SkillLevel = 'noob' | 'intern' | 'expert' | 'master' | 'legend';
 

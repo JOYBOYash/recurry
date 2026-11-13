@@ -33,6 +33,7 @@ const ALLOWED_LANGUAGES = new Set<LanguageId>([
   'cpp',
   'python',
   'javascript',
+  'ruby',
 ]);
 
 const ALLOWED_SKILL_LEVELS = new Set<SkillLevel>([
@@ -128,7 +129,7 @@ async function startServer() {
 
       if (!body.language || !ALLOWED_LANGUAGES.has(body.language)) {
         res.status(400).json({
-          error: 'Select a valid language (sql, java, cpp, python, javascript).',
+          error: 'Select a valid language (sql, java, cpp, python, javascript, ruby).',
         });
         return;
       }

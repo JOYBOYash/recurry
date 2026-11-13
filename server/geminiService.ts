@@ -21,6 +21,7 @@ const LANGUAGE_LABELS: Record<LanguageId, string> = {
   cpp: 'C++ (Modern C++20)',
   python: 'Python (Python 3.12)',
   javascript: 'JavaScript (ECMAScript 2024)',
+  ruby: 'Ruby (Ruby 3.3)',
 };
 
 const SKILL_LEVEL_PROMPTS: Record<SkillLevel, string> = {

@@ -33,3 +33,12 @@ test('tokenizeCode handles multi-line C++ and JavaScript snippets', () => {
   assert.equal(jsLines[0][0].type, 'keyword');
   assert.equal(jsLines[0][0].text, 'const');
 });
+
+test('tokenizeLine identifies Ruby keywords, types, strings, and comments', () => {
+  const tokens = tokenizeLine('def greet(name) puts "hi #{name}" # ruby', 'ruby');
+  assert.equal(tokens[0].type, 'keyword');
+  assert.equal(tokens[0].text, 'def');
+  assert.ok(tokens.some((t) => t.type === 'function' && t.text === 'greet'));
+  assert.ok(tokens.some((t) => t.type === 'type' && t.text === 'puts'));
+  assert.ok(tokens.some((t) => t.type === 'comment' && t.text === '# ruby'));
+});

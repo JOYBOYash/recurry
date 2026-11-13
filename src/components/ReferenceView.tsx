@@ -8,7 +8,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import {
-  BEGINNING_FIVE_LANGUAGES,
+  SUPPORTED_LANGUAGES,
   LANGUAGE_MAP,
   REFERENCE_CATEGORIES,
 } from '../data/languages';
@@ -77,6 +77,7 @@ export function ReferenceView({
     'cpp',
     'python',
     'javascript',
+    'ruby',
   ]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
@@ -157,7 +158,7 @@ export function ReferenceView({
           Syntax Reference
         </h1>
         <p className="text-sm text-slate-600">
-          Side-by-side idioms across SQL, Java, C++, Python, and JavaScript.
+          Side-by-side idioms across SQL, Java, C++, Python, JavaScript, and Ruby.
         </p>
       </div>
 
@@ -209,7 +210,7 @@ export function ReferenceView({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {BEGINNING_FIVE_LANGUAGES.map((lang) => {
+            {SUPPORTED_LANGUAGES.map((lang) => {
               const selected = genLanguages.includes(lang.id);
               return (
                 <button
@@ -336,7 +337,7 @@ export function ReferenceView({
           ) : (
             <div className="space-y-6">
               {filtered.map((entry) => {
-                const entryLangs = BEGINNING_FIVE_LANGUAGES.filter(
+                const entryLangs = SUPPORTED_LANGUAGES.filter(
                   (l) => Boolean(entry.snippets[l.id]) && genLanguages.includes(l.id),
                 );
                 return (

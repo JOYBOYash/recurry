@@ -27,6 +27,7 @@ const LANGUAGE_SHORT: Record<LanguageId, string> = {
   cpp: 'C++20',
   python: 'Python',
   javascript: 'JavaScript',
+  ruby: 'Ruby',
 };
 
 export function CodeBlock({

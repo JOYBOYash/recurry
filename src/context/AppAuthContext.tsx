@@ -19,11 +19,11 @@ import {
   deleteDoc,
   doc,
   onSnapshot,
-  orderBy,
   query,
   serverTimestamp,
   setDoc,
   updateDoc,
+  where,
 } from 'firebase/firestore';
 import {
   auth,
@@ -172,9 +172,12 @@ export function AppAuthProvider({ children }: { children: ReactNode }) {
 
     const tracksPath = `users/${uid}/tracks`;
     const unsubTracks = onSnapshot(
-      query(collection(db, 'users', uid, 'tracks'), orderBy('createdAt', 'desc')),
+      query(collection(db, 'users', uid, 'tracks'), where('uid', '==', uid)),
       (snap) => {
-        setTracks(snap.docs.map((d) => d.data() as CurriculumTrack));
+        const items = snap.docs
+          .map((d) => d.data() as CurriculumTrack)
+          .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''));
+        setTracks(items);
         setTracksLoaded(true);
       },
       (error) => {
@@ -185,12 +188,12 @@ export function AppAuthProvider({ children }: { children: ReactNode }) {
 
     const certsPath = `users/${uid}/certificates`;
     const unsubCerts = onSnapshot(
-      query(
-        collection(db, 'users', uid, 'certificates'),
-        orderBy('issuedAt', 'desc'),
-      ),
+      query(collection(db, 'users', uid, 'certificates'), where('uid', '==', uid)),
       (snap) => {
-        setCertificates(snap.docs.map((d) => d.data() as CertificateRecord));
+        const items = snap.docs
+          .map((d) => d.data() as CertificateRecord)
+          .sort((a, b) => (b.issuedAt ?? '').localeCompare(a.issuedAt ?? ''));
+        setCertificates(items);
       },
       (error) => {
         handleFirestoreError(error, OperationType.LIST, certsPath);
@@ -199,12 +202,12 @@ export function AppAuthProvider({ children }: { children: ReactNode }) {
 
     const refsPath = `users/${uid}/references`;
     const unsubRefs = onSnapshot(
-      query(
-        collection(db, 'users', uid, 'references'),
-        orderBy('createdAt', 'desc'),
-      ),
+      query(collection(db, 'users', uid, 'references'), where('uid', '==', uid)),
       (snap) => {
-        setReferenceEntries(snap.docs.map((d) => d.data() as ReferenceEntry));
+        const items = snap.docs
+          .map((d) => d.data() as ReferenceEntry)
+          .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''));
+        setReferenceEntries(items);
       },
       (error) => {
         handleFirestoreError(error, OperationType.LIST, refsPath);

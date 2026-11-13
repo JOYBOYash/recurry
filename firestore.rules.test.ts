@@ -24,6 +24,17 @@ test('firestore.rules enforces action-based updates, 1/day quota cap, and certif
   assert.match(rulesContent, /match \/certificates\/\{certId\}[\s\S]*allow update, delete:\s*if false;/);
 });
 
-test('firestore.rules enforces owner-scoped list queries without client delegation', () => {
+test('firestore.rules enforces owner-scoped list queries and supports all 6 languages including ruby', () => {
   assert.match(rulesContent, /allow list:\s*if isOwner\(userId\)\s*&&\s*existing\(\)\.uid == request\.auth\.uid;/);
+  assert.match(rulesContent, /'ruby'/);
+  assert.match(rulesContent, /data\.snippets\.size\(\)\s*<=\s*6/);
+});
+
+test('AppAuthContext list queries include uid filter matching Firestore list rules', () => {
+  const ctxPath = path.resolve(process.cwd(), 'src/context/AppAuthContext.tsx');
+  const ctxContent = fs.readFileSync(ctxPath, 'utf8');
+  for (const sub of ['tracks', 'certificates', 'references']) {
+    const pattern = new RegExp(`collection\\(db,\\s*'users',\\s*uid,\\s*'${sub}'\\),\\s*where\\('uid',\\s*'==',\\s*uid\\)`);
+    assert.match(ctxContent, pattern);
+  }
 });

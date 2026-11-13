@@ -13,7 +13,7 @@ import {
 import { DailyGoalRing } from '../components/DailyGoalRing';
 import { useAppAuth } from '../context/AppAuthContext';
 import {
-  BEGINNING_FIVE_LANGUAGES,
+  SUPPORTED_LANGUAGES,
   DAILY_GOAL_PRESETS,
   LEARNING_FOCUS_OPTIONS,
   SKILL_LEVELS,
@@ -190,7 +190,7 @@ export function SettingsPage() {
               onChange={(e) => setPreferredLanguage(e.target.value as LanguageId)}
               className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-blue-600 focus:outline-none"
             >
-              {BEGINNING_FIVE_LANGUAGES.map((l) => (
+              {SUPPORTED_LANGUAGES.map((l) => (
                 <option key={l.id} value={l.id}>
                   {l.name}
                 </option>

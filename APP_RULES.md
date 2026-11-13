@@ -15,7 +15,7 @@ Check this file before every code change, feature addition, or verification run.
 
 ## 3. Interaction, Cursors & Choice Cards
 - Never add numeric prefixes or numbering badges (`01`, `02`, `1.`, `2.`) to lists, option cards, steps, or tabs.
-- For choice cards and option buttons, place a scaled-up, subtly rotated icon (`overflow-hidden relative`) tucked at the trailing bottom-right corner for tactile depth.
+- Use each icon at most once per card or hero state; when placing a scaled-up, subtly rotated icon (`overflow-hidden relative`) tucked at the trailing bottom-right corner, omit any duplicate leading or top-left icon.
 - Every enabled button, link, role="button", and select must display `cursor: pointer`. Disabled controls use `cursor: not-allowed`.
 - Apply `.btn-juice` tactile hover/press feedback across interactive buttons and cards, while respecting `prefers-reduced-motion`.
 - Progression feedback (streak flame, daily goal SVG progress ring, module completion, 1–5 star accuracy certificates) should feel rewarding, light, and minimalistic without clutter or forced popups.

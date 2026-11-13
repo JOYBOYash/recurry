@@ -18,7 +18,7 @@ import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { LanguageIcon } from '../components/LanguageIcon';
 import { toLocalDateKey, useAppAuth } from '../context/AppAuthContext';
 import {
-  BEGINNING_FIVE_LANGUAGES,
+  SUPPORTED_LANGUAGES,
   LEARNING_FOCUS_OPTIONS,
   PACE_DEPTHS,
   SKILL_LEVELS,
@@ -302,7 +302,7 @@ export function GeneratingTrackView() {
                 Language
               </span>
               <div className="grid gap-2.5 sm:grid-cols-3">
-                {BEGINNING_FIVE_LANGUAGES.map((lang) => {
+                {SUPPORTED_LANGUAGES.map((lang) => {
                   const selected = language === lang.id;
                   return (
                     <button
@@ -316,11 +316,13 @@ export function GeneratingTrackView() {
                           : 'border-slate-200 hover:border-slate-300'
                       }`}
                     >
-                      <div className="relative z-10 flex items-center gap-2.5">
-                        <LanguageIcon language={lang.id} className="h-5 w-5" />
+                      <div className="relative z-10">
                         <span className="font-display text-sm font-bold text-slate-950">
                           {lang.name}
                         </span>
+                        <div className="font-mono text-[11px] text-slate-500">
+                          {lang.paradigm}
+                        </div>
                       </div>
                       <Check
                         className={`relative z-10 h-4 w-4 ${selected ? 'text-blue-600' : 'text-transparent'}`}
@@ -328,8 +330,8 @@ export function GeneratingTrackView() {
                       />
                       <LanguageIcon
                         language={lang.id}
-                        className={`pointer-events-none absolute -right-1.5 -bottom-2 h-11 w-11 -rotate-12 ${
-                          selected ? 'opacity-[0.14]' : 'opacity-[0.06]'
+                        className={`pointer-events-none absolute -right-1.5 -bottom-2 h-12 w-12 -rotate-12 ${
+                          selected ? 'opacity-[0.34]' : 'opacity-[0.22]'
                         }`}
                       />
                     </button>

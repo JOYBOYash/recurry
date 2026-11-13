@@ -7,7 +7,7 @@ import type {
   SkillLevel,
 } from '../types/curriculum';
 
-export const BEGINNING_FIVE_LANGUAGES: LanguageMeta[] = [
+export const SUPPORTED_LANGUAGES: LanguageMeta[] = [
   {
     id: 'sql',
     name: 'SQL',
@@ -58,10 +58,20 @@ export const BEGINNING_FIVE_LANGUAGES: LanguageMeta[] = [
     keyConstructs: ['Closures', 'Destructuring', 'Array Methods', 'Classes', 'Promises', 'Async/Await'],
     accentColor: '#D97706',
   },
+  {
+    id: 'ruby',
+    name: 'Ruby',
+    standardLabel: 'Ruby 3.3',
+    paradigm: 'Object-Oriented',
+    typingSystem: 'Dynamic Strong',
+    summary: 'Blocks, symbols, Enumerable pipelines, modules, and pattern matching.',
+    keyConstructs: ['Blocks & Procs', 'Enumerable', 'Symbols', 'Modules & Mixins', 'Pattern Matching', 'Hashes'],
+    accentColor: '#E11D48',
+  },
 ];
 
 export const LANGUAGE_MAP: Record<LanguageId, LanguageMeta> =
-  BEGINNING_FIVE_LANGUAGES.reduce(
+  SUPPORTED_LANGUAGES.reduce(
     (acc, lang) => {
       acc[lang.id] = lang;
       return acc;

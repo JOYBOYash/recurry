@@ -29,7 +29,7 @@ service cloud.firestore {
     }
 
     function isValidLanguage(lang) {
-      return lang in ['sql', 'java', 'cpp', 'python', 'javascript'];
+      return lang in ['sql', 'java', 'cpp', 'python', 'javascript', 'ruby'];
     }
 
     function isValidSkillLevel(level) {
@@ -256,7 +256,7 @@ service cloud.firestore {
         && data.createdAt is string
         && data.createdAt.size() <= 40
         && data.snippets is map
-        && data.snippets.size() <= 5;
+        && data.snippets.size() <= 6;
     }
 
     match /users/{userId} {

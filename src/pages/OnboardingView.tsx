@@ -3,7 +3,6 @@ import {
   AlertCircle,
   ArrowLeft,
   ArrowRight,
-  Award,
   Check,
   Code2,
   Coffee,
@@ -24,7 +23,7 @@ import { DailyGoalRing } from '../components/DailyGoalRing';
 import { LanguageIcon } from '../components/LanguageIcon';
 import { useAppAuth } from '../context/AppAuthContext';
 import {
-  BEGINNING_FIVE_LANGUAGES,
+  SUPPORTED_LANGUAGES,
   DAILY_GOAL_PRESETS,
   LANGUAGE_MAP,
   LEARNING_FOCUS_OPTIONS,
@@ -345,12 +344,12 @@ export function OnboardingView() {
                     Choose your first language
                   </h1>
                   <p className="text-sm text-slate-600">
-                    Start with one of the Beginning Five.
+                    Pick one of six supported languages to start.
                   </p>
                 </div>
 
                 <div className="space-y-2.5">
-                  {BEGINNING_FIVE_LANGUAGES.map((lang) => {
+                  {SUPPORTED_LANGUAGES.map((lang) => {
                     const selected = draft.preferredLanguage === lang.id;
                     return (
                       <button
@@ -366,15 +365,12 @@ export function OnboardingView() {
                             : 'border-slate-200 hover:border-slate-300'
                         }`}
                       >
-                        <div className="relative z-10 flex items-center gap-3.5">
-                          <LanguageIcon language={lang.id} className="h-7 w-7" />
-                          <div>
-                            <div className="font-display text-base font-bold text-slate-950">
-                              {lang.name}
-                            </div>
-                            <div className="font-mono text-xs text-slate-500">
-                              {lang.standardLabel}
-                            </div>
+                        <div className="relative z-10 pr-10">
+                          <div className="font-display text-base font-bold text-slate-950">
+                            {lang.name}
+                          </div>
+                          <div className="font-mono text-xs text-slate-500">
+                            {lang.standardLabel}
                           </div>
                         </div>
                         <span
@@ -390,7 +386,7 @@ export function OnboardingView() {
                         <LanguageIcon
                           language={lang.id}
                           className={`pointer-events-none absolute -right-2 -bottom-3 h-16 w-16 -rotate-12 transition-transform duration-200 group-hover:scale-110 ${
-                            selected ? 'opacity-[0.14]' : 'opacity-[0.06]'
+                            selected ? 'opacity-[0.34]' : 'opacity-[0.22]'
                           }`}
                         />
                       </button>
@@ -755,13 +751,10 @@ export function OnboardingView() {
 
             {currentStep === 'ready' && (
               <div className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 text-center sm:p-10">
-                <div className="mx-auto flex items-center justify-center gap-4">
-                  <Flame
-                    className="h-9 w-9 fill-amber-500/20 text-amber-500"
-                    aria-hidden="true"
-                  />
-                  <Award className="h-9 w-9 text-blue-600" aria-hidden="true" />
-                </div>
+                <Flame
+                  className="mx-auto h-10 w-10 fill-amber-500/20 text-amber-500"
+                  aria-hidden="true"
+                />
 
                 <div className="space-y-2">
                   <span className="font-mono text-xs font-semibold text-emerald-700">

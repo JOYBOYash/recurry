@@ -1,5 +1,5 @@
 import { FaJava } from 'react-icons/fa6';
-import { SiCplusplus, SiJavascript, SiPython } from 'react-icons/si';
+import { SiCplusplus, SiJavascript, SiPython, SiRuby } from 'react-icons/si';
 import { TbSql } from 'react-icons/tb';
 import type { LanguageId } from '../types/curriculum';
 
@@ -14,6 +14,7 @@ const LANGUAGE_ICON_COLOR: Record<LanguageId, string> = {
   cpp: 'text-blue-600',
   python: 'text-emerald-600',
   javascript: 'text-amber-500',
+  ruby: 'text-rose-600',
 };
 
 export function LanguageIcon({
@@ -34,6 +35,9 @@ export function LanguageIcon({
   }
   if (language === 'python') {
     return <SiPython className={merged} aria-hidden="true" />;
+  }
+  if (language === 'ruby') {
+    return <SiRuby className={merged} aria-hidden="true" />;
   }
   return <SiJavascript className={merged} aria-hidden="true" />;
 }

@@ -53,6 +53,12 @@ const KEYWORDS: Record<LanguageId, Set<string>> = {
     'try', 'catch', 'finally', 'throw', 'typeof', 'instanceof', 'true',
     'false', 'null', 'undefined',
   ]),
+  ruby: new Set([
+    'def', 'end', 'class', 'module', 'return', 'if', 'elsif', 'else', 'unless',
+    'case', 'when', 'while', 'until', 'for', 'in', 'do', 'begin', 'rescue',
+    'ensure', 'raise', 'yield', 'self', 'super', 'require', 'include', 'extend',
+    'attr_reader', 'attr_accessor', 'true', 'false', 'nil', 'and', 'or', 'not',
+  ]),
 };
 
 const TYPES: Record<LanguageId, Set<string>> = {
@@ -79,6 +85,10 @@ const TYPES: Record<LanguageId, Set<string>> = {
   javascript: new Set([
     'Array', 'Object', 'Map', 'Set', 'Promise', 'Error', 'JSON', 'Math',
     'Number', 'String', 'Boolean', 'console',
+  ]),
+  ruby: new Set([
+    'Integer', 'Float', 'String', 'Array', 'Hash', 'Symbol', 'Enumerable',
+    'Struct', 'StandardError', 'puts', 'print', 'p', 'select', 'map', 'reduce', 'sum',
   ]),
 };
 
@@ -108,7 +118,7 @@ export function tokenizeLine(line: string, language: LanguageId): SyntaxToken[] 
     // Line comments
     if (
       ((language === 'sql' && ch === '-' && next === '-') ||
-        (language === 'python' && ch === '#') ||
+        ((language === 'python' || language === 'ruby') && ch === '#') ||
         ((language === 'java' || language === 'cpp' || language === 'javascript') &&
           ch === '/' &&
           next === '/'))
