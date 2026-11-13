@@ -1,0 +1,126 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Owner-scoped learner profile, onboarding choices, daily module goal, completion tracking, and daily 1/day generation quota.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID matching document ID." },
+        "username": { "type": "string", "description": "Display handle (2-32 chars)." },
+        "dailyModuleGoal": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "onboardingCompleted": { "type": "boolean" },
+        "preferredLanguage": { "type": "string", "enum": ["sql", "java", "cpp", "python", "javascript"] },
+        "skillLevel": { "type": "string", "enum": ["noob", "intern", "expert", "master", "legend"] },
+        "learningFocus": { "type": "string", "enum": ["syntax", "problem_solving"] },
+        "lastGeneratedDate": { "type": "string", "description": "YYYY-MM-DD of latest generated curriculum or empty string." },
+        "dailyGenerationCount": { "type": "integer", "minimum": 0, "maximum": 1 },
+        "activeTrackId": { "type": ["string", "null"] },
+        "activeModuleId": { "type": ["string", "null"] },
+        "completedModuleIds": { "type": "array", "items": { "type": "string" } },
+        "moduleCompletedAt": { "type": "object" },
+        "moduleAccuracy": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "uid",
+        "username",
+        "dailyModuleGoal",
+        "onboardingCompleted",
+        "preferredLanguage",
+        "skillLevel",
+        "learningFocus",
+        "lastGeneratedDate",
+        "dailyGenerationCount",
+        "completedModuleIds",
+        "moduleCompletedAt",
+        "moduleAccuracy"
+      ]
+    },
+    "CurriculumTrackDoc": {
+      "title": "CurriculumTrackDoc",
+      "description": "Personalized language curriculum generated for a learner.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "uid": { "type": "string" },
+        "language": { "type": "string", "enum": ["sql", "java", "cpp", "python", "javascript"] },
+        "title": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "skillLevel": { "type": "string", "enum": ["noob", "intern", "expert", "master", "legend"] },
+        "learningFocus": { "type": "string", "enum": ["syntax", "problem_solving"] },
+        "paceDepth": { "type": "string", "enum": ["essentials", "comprehensive", "complete"] },
+        "priorBackground": { "type": "string" },
+        "bridgingStrategy": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "redoCount": { "type": "integer", "minimum": 0 },
+        "modules": { "type": "array" }
+      },
+      "required": ["id", "uid", "language", "title", "modules", "createdAt"]
+    },
+    "CertificateDoc": {
+      "title": "CertificateDoc",
+      "description": "Completion certificate ranked 1-5 stars by problem-solving accuracy.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "uid": { "type": "string" },
+        "trackId": { "type": "string" },
+        "trackTitle": { "type": "string" },
+        "language": { "type": "string", "enum": ["sql", "java", "cpp", "python", "javascript"] },
+        "username": { "type": "string" },
+        "accuracyPercent": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "stars": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "completedModulesCount": { "type": "integer", "minimum": 1 },
+        "certificateCode": { "type": "string" },
+        "issuedAt": { "type": "string" }
+      },
+      "required": [
+        "id",
+        "uid",
+        "trackId",
+        "trackTitle",
+        "language",
+        "username",
+        "accuracyPercent",
+        "stars",
+        "completedModulesCount",
+        "certificateCode",
+        "issuedAt"
+      ]
+    },
+    "ReferenceEntryDoc": {
+      "title": "ReferenceEntryDoc",
+      "description": "Saved cross-language syntax comparison entry.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "uid": { "type": "string" },
+        "category": { "type": "string" },
+        "concept": { "type": "string" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "snippets": { "type": "object" }
+      },
+      "required": ["id", "uid", "category", "concept", "description", "createdAt", "snippets"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private learner profile, daily goal, completions, and daily quota state."
+    },
+    "/users/{userId}/tracks/{trackId}": {
+      "schema": { "$ref": "#/entities/CurriculumTrackDoc" },
+      "description": "Learner's personalized curriculum tracks."
+    },
+    "/users/{userId}/certificates/{certId}": {
+      "schema": { "$ref": "#/entities/CertificateDoc" },
+      "description": "Earned curriculum completion certificates ranked 1-5 stars."
+    },
+    "/users/{userId}/references/{entryId}": {
+      "schema": { "$ref": "#/entities/ReferenceEntryDoc" },
+      "description": "Saved syntax comparison reference cards."
+    }
+  }
+}

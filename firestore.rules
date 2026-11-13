@@ -1,0 +1,346 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: deny everything by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+    }
+
+    function isValidLanguage(lang) {
+      return lang in ['sql', 'java', 'cpp', 'python', 'javascript'];
+    }
+
+    function isValidSkillLevel(level) {
+      return level in ['noob', 'intern', 'expert', 'master', 'legend'];
+    }
+
+    function isValidFocus(focus) {
+      return focus in ['syntax', 'problem_solving'];
+    }
+
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll([
+          'uid',
+          'username',
+          'dailyModuleGoal',
+          'onboardingCompleted',
+          'preferredLanguage',
+          'skillLevel',
+          'learningFocus',
+          'lastGeneratedDate',
+          'dailyGenerationCount',
+          'completedModuleIds',
+          'moduleCompletedAt',
+          'moduleAccuracy',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid',
+          'username',
+          'dailyModuleGoal',
+          'onboardingCompleted',
+          'preferredLanguage',
+          'skillLevel',
+          'learningFocus',
+          'lastGeneratedDate',
+          'dailyGenerationCount',
+          'activeTrackId',
+          'activeModuleId',
+          'completedModuleIds',
+          'moduleCompletedAt',
+          'moduleAccuracy',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.uid is string
+        && data.uid.size() <= 128
+        && data.uid == userId
+        && data.username is string
+        && data.username.size() >= 1
+        && data.username.size() <= 40
+        && data.dailyModuleGoal is int
+        && data.dailyModuleGoal >= 1
+        && data.dailyModuleGoal <= 10
+        && data.onboardingCompleted is bool
+        && isValidLanguage(data.preferredLanguage)
+        && isValidSkillLevel(data.skillLevel)
+        && isValidFocus(data.learningFocus)
+        && data.lastGeneratedDate is string
+        && data.lastGeneratedDate.size() <= 10
+        && data.dailyGenerationCount is int
+        && data.dailyGenerationCount >= 0
+        && data.dailyGenerationCount <= 1
+        && (!('activeTrackId' in data) || data.activeTrackId == null || (data.activeTrackId is string && data.activeTrackId.size() <= 128))
+        && (!('activeModuleId' in data) || data.activeModuleId == null || (data.activeModuleId is string && data.activeModuleId.size() <= 140))
+        && data.completedModuleIds is list
+        && data.completedModuleIds.size() <= 500
+        && data.moduleCompletedAt is map
+        && data.moduleCompletedAt.size() <= 500
+        && data.moduleAccuracy is map
+        && data.moduleAccuracy.size() <= 500
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidTrack(data, userId, trackId) {
+      return data.keys().hasAll([
+          'id',
+          'uid',
+          'language',
+          'title',
+          'subtitle',
+          'skillLevel',
+          'learningFocus',
+          'paceDepth',
+          'createdAt',
+          'modules'
+        ])
+        && data.keys().hasOnly([
+          'id',
+          'uid',
+          'language',
+          'title',
+          'subtitle',
+          'skillLevel',
+          'learningFocus',
+          'experienceLevel',
+          'goal',
+          'paceDepth',
+          'priorBackground',
+          'bridgingStrategy',
+          'createdAt',
+          'redoCount',
+          'modules'
+        ])
+        && data.uid is string
+        && data.uid.size() <= 128
+        && data.uid == userId
+        && data.id is string
+        && data.id.size() <= 128
+        && data.id == trackId
+        && isValidLanguage(data.language)
+        && data.title is string
+        && data.title.size() >= 1
+        && data.title.size() <= 160
+        && data.subtitle is string
+        && data.subtitle.size() <= 280
+        && isValidSkillLevel(data.skillLevel)
+        && isValidFocus(data.learningFocus)
+        && data.paceDepth is string
+        && data.paceDepth in ['essentials', 'comprehensive', 'complete']
+        && data.createdAt is string
+        && data.createdAt.size() <= 40
+        && data.modules is list
+        && data.modules.size() >= 1
+        && data.modules.size() <= 16
+        && (!('priorBackground' in data) || (data.priorBackground is string && data.priorBackground.size() <= 320))
+        && (!('bridgingStrategy' in data) || (data.bridgingStrategy is string && data.bridgingStrategy.size() <= 400))
+        && (!('experienceLevel' in data) || (data.experienceLevel is string && data.experienceLevel.size() <= 40))
+        && (!('goal' in data) || (data.goal is string && data.goal.size() <= 40))
+        && (!('redoCount' in data) || (data.redoCount is int && data.redoCount >= 0 && data.redoCount <= 1000));
+    }
+
+    function isValidCertificate(data, userId, certId) {
+      return data.keys().hasAll([
+          'id',
+          'uid',
+          'trackId',
+          'trackTitle',
+          'language',
+          'username',
+          'accuracyPercent',
+          'stars',
+          'completedModulesCount',
+          'certificateCode',
+          'issuedAt'
+        ])
+        && data.keys().hasOnly([
+          'id',
+          'uid',
+          'trackId',
+          'trackTitle',
+          'language',
+          'username',
+          'accuracyPercent',
+          'stars',
+          'completedModulesCount',
+          'certificateCode',
+          'issuedAt'
+        ])
+        && data.uid is string
+        && data.uid.size() <= 128
+        && data.uid == userId
+        && data.id is string
+        && data.id.size() <= 128
+        && data.id == certId
+        && data.trackId is string
+        && data.trackId.size() <= 128
+        && data.trackTitle is string
+        && data.trackTitle.size() >= 1
+        && data.trackTitle.size() <= 160
+        && isValidLanguage(data.language)
+        && data.username is string
+        && data.username.size() >= 1
+        && data.username.size() <= 40
+        && data.accuracyPercent is int
+        && data.accuracyPercent >= 0
+        && data.accuracyPercent <= 100
+        && data.stars is int
+        && data.stars >= 1
+        && data.stars <= 5
+        && data.completedModulesCount is int
+        && data.completedModulesCount >= 1
+        && data.completedModulesCount <= 32
+        && data.certificateCode is string
+        && data.certificateCode.size() >= 4
+        && data.certificateCode.size() <= 40
+        && data.issuedAt is string
+        && data.issuedAt.size() <= 40;
+    }
+
+    function isValidReference(data, userId, entryId) {
+      return data.keys().hasAll([
+          'id',
+          'uid',
+          'category',
+          'concept',
+          'description',
+          'createdAt',
+          'snippets'
+        ])
+        && data.keys().hasOnly([
+          'id',
+          'uid',
+          'category',
+          'concept',
+          'description',
+          'createdAt',
+          'snippets'
+        ])
+        && data.uid is string
+        && data.uid.size() <= 128
+        && data.uid == userId
+        && data.id is string
+        && data.id.size() <= 128
+        && data.id == entryId
+        && data.category is string
+        && data.category.size() <= 60
+        && data.concept is string
+        && data.concept.size() >= 1
+        && data.concept.size() <= 140
+        && data.description is string
+        && data.description.size() <= 400
+        && data.createdAt is string
+        && data.createdAt.size() <= 40
+        && data.snippets is map
+        && data.snippets.size() <= 5;
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isOwner(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action: Onboarding / Settings update
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'username',
+            'dailyModuleGoal',
+            'onboardingCompleted',
+            'preferredLanguage',
+            'skillLevel',
+            'learningFocus',
+            'updatedAt'
+          ])
+          ||
+          // Action: Selection / Progress / Accuracy / Redo update
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'activeTrackId',
+            'activeModuleId',
+            'completedModuleIds',
+            'moduleCompletedAt',
+            'moduleAccuracy',
+            'updatedAt'
+          ])
+          ||
+          // Action: Daily curriculum generation quota & active selection update
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'lastGeneratedDate',
+            'dailyGenerationCount',
+            'activeTrackId',
+            'activeModuleId',
+            'updatedAt'
+          ])
+        );
+      allow delete: if false;
+
+      match /tracks/{trackId} {
+        allow get: if isOwner(userId) && isValidId(trackId);
+        allow list: if isOwner(userId) && existing().uid == request.auth.uid;
+        allow create: if isOwner(userId)
+          && isValidId(trackId)
+          && isValidTrack(incoming(), userId, trackId);
+        allow update: if isOwner(userId)
+          && isValidId(trackId)
+          && isValidTrack(incoming(), userId, trackId)
+          && incoming().uid == existing().uid
+          && incoming().id == existing().id
+          && incoming().createdAt == existing().createdAt
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'modules',
+            'redoCount'
+          ]);
+        allow delete: if isOwner(userId) && isValidId(trackId);
+      }
+
+      match /certificates/{certId} {
+        allow get: if isOwner(userId) && isValidId(certId);
+        allow list: if isOwner(userId) && existing().uid == request.auth.uid;
+        allow create: if isOwner(userId)
+          && isValidId(certId)
+          && isValidCertificate(incoming(), userId, certId);
+        allow update, delete: if false;
+      }
+
+      match /references/{entryId} {
+        allow get: if isOwner(userId) && isValidId(entryId);
+        allow list: if isOwner(userId) && existing().uid == request.auth.uid;
+        allow create: if isOwner(userId)
+          && isValidId(entryId)
+          && isValidReference(incoming(), userId, entryId);
+        allow update: if false;
+        allow delete: if isOwner(userId) && isValidId(entryId);
+      }
+    }
+  }
+}
