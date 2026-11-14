@@ -83,7 +83,7 @@ export function LandingPage() {
           className={`flex items-center transition-all duration-300 ease-out ${
             isScrolled
               ? 'h-11 w-auto justify-end bg-transparent p-0 md:h-13 md:w-full md:max-w-[660px] md:justify-between md:gap-5 md:rounded-full md:border md:border-slate-200/90 md:bg-white/88 md:px-4 md:shadow-[0_14px_34px_-10px_rgba(15,23,42,0.18)] md:backdrop-blur-xl'
-              : 'h-16 w-full max-w-[1600px] justify-between gap-6 rounded-none border-b border-white/20 bg-blue-950/15 px-4 backdrop-blur-md sm:px-8 lg:px-12'
+              : 'h-16 w-full justify-between gap-6 rounded-none border-b border-white/20 bg-blue-950/15 px-4 backdrop-blur-md sm:px-8 lg:px-12'
           }`}
         >
           <Link
@@ -313,17 +313,17 @@ export function LandingPage() {
               <p className="mx-auto max-w-lg text-sm text-blue-100 sm:text-base">
                 Start one custom track per day for free across all six languages.
               </p>
-              <div className="flex flex-col items-center justify-center gap-3 pt-2 sm:flex-row">
+              <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
                 <Link
                   to={primaryDestination}
-                  className="btn-juice inline-flex min-h-12 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl border-b-2 border-blue-200 bg-white px-7 py-3 text-sm font-bold text-blue-700 hover:bg-blue-50 sm:w-auto"
+                  className="btn-juice inline-flex min-h-12 w-auto items-center justify-center gap-2 whitespace-nowrap rounded-xl border-b-2 border-blue-200 bg-white px-7 py-3 text-sm font-bold text-blue-700 hover:bg-blue-50"
                 >
                   <span>Get Started</span>
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Link>
                 <a
                   href="#skills"
-                  className="btn-juice inline-flex min-h-12 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-white/40 bg-white/15 px-6 py-3 text-sm font-semibold text-white backdrop-blur-xs hover:bg-white/25 sm:w-auto"
+                  className="btn-juice inline-flex min-h-12 w-auto items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-white/40 bg-white/15 px-6 py-3 text-sm font-semibold text-white backdrop-blur-xs hover:bg-white/25"
                 >
                   <span>Compare Languages</span>
                 </a>

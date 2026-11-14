@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -17,9 +17,12 @@ import { LanguageIcon } from '../components/LanguageIcon';
 import { WorkbenchView } from '../components/WorkbenchView';
 import { useAppAuth } from '../context/AppAuthContext';
 import { LANGUAGE_MAP, SKILL_LEVELS } from '../data/languages';
+import { triggerTrackCompletionConfetti } from '../utils/confetti';
 import {
   calculateTrackProgress,
   computeTrackAccuracyAndStars,
+  shouldTriggerTrackCelebration,
+  type TrackCompletionSnapshot,
 } from '../utils/curriculumLogic';
 
 export function LearnPage() {
@@ -47,6 +50,45 @@ export function LearnPage() {
   const selectedTrack = trackId
     ? tracks.find((t) => t.id === trackId) ?? activeTrack
     : activeTrack;
+
+  const completedModuleIds = profile?.completedModuleIds ?? [];
+  const progress = calculateTrackProgress(selectedTrack, completedModuleIds);
+  const isTrackComplete =
+    progress.totalCount > 0 && progress.completedCount === progress.totalCount;
+
+  const prevCompletionRef = useRef<TrackCompletionSnapshot | null>(null);
+  const confettiCleanupRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    return () => {
+      confettiCleanupRef.current?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedTrack) {
+      prevCompletionRef.current = null;
+      return;
+    }
+
+    const nextSnapshot: TrackCompletionSnapshot = {
+      trackId: selectedTrack.id,
+      isComplete: isTrackComplete,
+    };
+
+    if (shouldTriggerTrackCelebration(prevCompletionRef.current, nextSnapshot)) {
+      confettiCleanupRef.current?.();
+      confettiCleanupRef.current = triggerTrackCompletionConfetti();
+    } else if (
+      prevCompletionRef.current &&
+      prevCompletionRef.current.trackId !== nextSnapshot.trackId
+    ) {
+      confettiCleanupRef.current?.();
+      confettiCleanupRef.current = null;
+    }
+
+    prevCompletionRef.current = nextSnapshot;
+  }, [selectedTrack, isTrackComplete]);
 
   useEffect(() => {
     if (selectedTrack && activeTrack?.id !== selectedTrack.id) {
@@ -86,10 +128,8 @@ export function LearnPage() {
     );
   }
 
-  const completedModuleIds = profile?.completedModuleIds ?? [];
   const moduleAccuracy = profile?.moduleAccuracy ?? {};
   const completedSet = new Set(completedModuleIds);
-  const progress = calculateTrackProgress(selectedTrack, completedModuleIds);
   const accuracy = computeTrackAccuracyAndStars(
     selectedTrack,
     moduleAccuracy,
@@ -118,6 +158,7 @@ export function LearnPage() {
         activeTrack={selectedTrack}
         activeModuleId={activeModuleId}
         completedModuleIds={completedModuleIds}
+        isTrackComplete={isTrackComplete}
         getIdToken={getIdToken}
         onBackToPath={() => setMode('overview')}
         onStartBuilder={() => navigate('/generate')}

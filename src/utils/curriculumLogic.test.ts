@@ -11,6 +11,7 @@ import {
   computeLearningStats,
   computeTrackAccuracyAndStars,
   filterReferenceEntries,
+  shouldTriggerTrackCelebration,
   validatePersonalizationInput,
   validateReferenceTopicInput,
 } from './curriculumLogic';
@@ -259,4 +260,64 @@ test('checkBalancedDelimiters detects unclosed braces and quotes', () => {
   assert.deepEqual(checkBalancedDelimiters('if (a > 0) { return "ok"; }'), []);
   const broken = checkBalancedDelimiters('if (a > 0 { return "ok; }');
   assert.ok(broken.length > 0);
+});
+
+test('shouldTriggerTrackCelebration fires only on false -> true completion within the same track', () => {
+  // Initial mount already complete: do not fire
+  assert.equal(
+    shouldTriggerTrackCelebration(null, { trackId: 't1', isComplete: true }),
+    false,
+  );
+  // Initial mount incomplete: do not fire
+  assert.equal(
+    shouldTriggerTrackCelebration(null, { trackId: 't1', isComplete: false }),
+    false,
+  );
+  // Progressing from incomplete to still incomplete: do not fire
+  assert.equal(
+    shouldTriggerTrackCelebration(
+      { trackId: 't1', isComplete: false },
+      { trackId: 't1', isComplete: false },
+    ),
+    false,
+  );
+  // Completing the final module on the same track: fire!
+  assert.equal(
+    shouldTriggerTrackCelebration(
+      { trackId: 't1', isComplete: false },
+      { trackId: 't1', isComplete: true },
+    ),
+    true,
+  );
+  // Remaining complete on subsequent renders: do not fire again
+  assert.equal(
+    shouldTriggerTrackCelebration(
+      { trackId: 't1', isComplete: true },
+      { trackId: 't1', isComplete: true },
+    ),
+    false,
+  );
+  // Switching to a different already-completed track: do not fire
+  assert.equal(
+    shouldTriggerTrackCelebration(
+      { trackId: 't1', isComplete: false },
+      { trackId: 't2', isComplete: true },
+    ),
+    false,
+  );
+  // Redo track resets to incomplete (do not fire), then completing again fires
+  assert.equal(
+    shouldTriggerTrackCelebration(
+      { trackId: 't1', isComplete: true },
+      { trackId: 't1', isComplete: false },
+    ),
+    false,
+  );
+  assert.equal(
+    shouldTriggerTrackCelebration(
+      { trackId: 't1', isComplete: false },
+      { trackId: 't1', isComplete: true },
+    ),
+    true,
+  );
 });

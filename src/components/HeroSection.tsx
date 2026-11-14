@@ -116,19 +116,19 @@ export function HeroSection({
       <div
         ref={groundRef}
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 -bottom-[180px] z-[3] h-[480px] will-change-transform sm:-bottom-[200px] sm:h-[520px] lg:-bottom-[260px] lg:h-[560px]"
+        className="pointer-events-none absolute inset-x-0 -bottom-[120px] z-[3] aspect-[16/9] min-h-[360px] w-full will-change-transform sm:-bottom-[180px] lg:-bottom-[260px]"
       >
         <img
           src="/assets/images/parallax-ground.webp"
           alt=""
-          className="h-full w-full object-cover object-bottom"
+          className="h-full w-full object-cover object-bottom contrast-[1.05] saturate-[1.05]"
         />
       </div>
 
-      {/* Subtle bottom edge blend into #F7F8FA */}
+      {/* Crisp minimal bottom edge seam into #F7F8FA without smudging foreground flowers */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 bottom-0 z-[5] h-14 bg-gradient-to-t from-[#F7F8FA] via-[#F7F8FA]/55 to-transparent sm:h-16"
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-[5] h-5 bg-gradient-to-t from-[#F7F8FA] to-transparent sm:h-6"
       />
 
       {/* Centered Hero Copy & CTAs in open sky (cleared below fixed glassmorphic navbar) */}
@@ -146,10 +146,10 @@ export function HeroSection({
             Pick your level from beginner to pro. Practice SQL, Java, C++, Python, JavaScript, and Ruby with short lessons and instant code checks.
           </p>
 
-          <div className="flex flex-col items-center justify-center gap-3 pt-2 sm:flex-row">
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
             <Link
               to={primaryDestination}
-              className="btn-juice inline-flex min-h-12 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl border-b-2 border-blue-200 bg-white px-6 py-3 text-sm font-bold text-blue-700 hover:bg-blue-50 sm:w-auto"
+              className="btn-juice inline-flex min-h-12 w-auto items-center justify-center gap-2 whitespace-nowrap rounded-xl border-b-2 border-blue-200 bg-white px-6 py-3 text-sm font-bold text-blue-700 hover:bg-blue-50"
             >
               <Layers className="h-4 w-4" aria-hidden="true" />
               <span>
@@ -159,7 +159,7 @@ export function HeroSection({
             </Link>
             <a
               href="#skills"
-              className="btn-juice inline-flex min-h-12 w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-white/45 bg-white/15 px-6 py-3 text-sm font-semibold text-white backdrop-blur-xs hover:bg-white/25 sm:w-auto"
+              className="btn-juice inline-flex min-h-12 w-auto items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-white/45 bg-white/15 px-6 py-3 text-sm font-semibold text-white backdrop-blur-xs hover:bg-white/25"
             >
               <span>Explore 6 Languages</span>
             </a>
@@ -170,7 +170,7 @@ export function HeroSection({
       {/* Scroll indicator resting cleanly between sky and meadow horizon, fading out on scroll */}
       <div
         ref={scrollCueRef}
-        className="relative z-10 flex justify-center px-4 pb-36 pt-6 will-change-transform sm:pb-48 lg:pb-56"
+        className="relative z-10 flex justify-center px-4 pb-36 pt-6 will-change-transform sm:pb-44 lg:pb-52"
       >
         <a
           href="#skills"

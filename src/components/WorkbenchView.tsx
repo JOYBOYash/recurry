@@ -3,6 +3,7 @@ import {
   AlertCircle,
   ArrowLeft,
   ArrowRight,
+  Award,
   BookOpen,
   CheckCheck,
   CheckCircle2,
@@ -29,6 +30,7 @@ interface WorkbenchViewProps {
   activeTrack: CurriculumTrack | null;
   activeModuleId: string | null;
   completedModuleIds: string[];
+  isTrackComplete?: boolean;
   getIdToken: () => Promise<string>;
   onBackToPath: () => void;
   onStartBuilder: () => void;
@@ -48,6 +50,7 @@ export function WorkbenchView({
   activeTrack,
   activeModuleId,
   completedModuleIds,
+  isTrackComplete = false,
   getIdToken,
   onBackToPath,
   onStartBuilder,
@@ -731,6 +734,17 @@ export function WorkbenchView({
                 </button>
               )}
 
+              {isTrackComplete && !nextModule && (
+                <button
+                  type="button"
+                  onClick={onBackToPath}
+                  className="btn-juice inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border-b-2 border-amber-700 bg-amber-500 px-5 py-3 text-sm font-bold text-white hover:bg-amber-600"
+                >
+                  <Award className="h-4 w-4" aria-hidden="true" />
+                  <span>Track Complete · Claim Certificate</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={handleGeminiReview}
@@ -868,7 +882,7 @@ export function WorkbenchView({
               <span>Practice</span>
             </button>
 
-            {nextModule && (
+            {nextModule ? (
               <button
                 type="button"
                 onClick={() => onSelectModule(nextModule.id)}
@@ -880,7 +894,16 @@ export function WorkbenchView({
                   aria-hidden="true"
                 />
               </button>
-            )}
+            ) : isTrackComplete ? (
+              <button
+                type="button"
+                onClick={onBackToPath}
+                className="btn-juice inline-flex min-h-11 items-center gap-1.5 rounded-xl border-b-2 border-amber-700 bg-amber-500 px-4 py-2 text-xs font-bold text-white hover:bg-amber-600"
+              >
+                <Award className="h-4 w-4" aria-hidden="true" />
+                <span>Track Complete · Claim Certificate</span>
+              </button>
+            ) : null}
           </div>
         </section>
       )}

@@ -22,6 +22,7 @@ import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { DailyGoalRing } from '../components/DailyGoalRing';
 import { BrandLogo } from '../components/BrandLogo';
 import { LanguageIcon } from '../components/LanguageIcon';
+import { ScenicBackdrop } from '../components/ScenicBackdrop';
 import { useAppAuth } from '../context/AppAuthContext';
 import {
   SUPPORTED_LANGUAGES,
@@ -139,12 +140,14 @@ export function OnboardingView() {
 
   if (!authReady || (user && dataLoading)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#F7F8FA]">
-        <div className="flex items-center gap-2.5 text-sm font-medium text-slate-600">
-          <Loader2 className="h-4 w-4 animate-spin text-blue-600" aria-hidden="true" />
-          <span>Loading onboarding...</span>
+      <ScenicBackdrop>
+        <div className="flex h-full items-center justify-center px-4">
+          <div className="flex items-center gap-2.5 rounded-2xl border border-white/80 bg-white/95 px-5 py-3.5 text-sm font-medium text-slate-700 shadow-[0_20px_50px_-15px_rgba(15,23,42,0.3)] backdrop-blur-xl">
+            <Loader2 className="h-4 w-4 animate-spin text-blue-600" aria-hidden="true" />
+            <span>Loading onboarding...</span>
+          </div>
         </div>
-      </div>
+      </ScenicBackdrop>
     );
   }
 
@@ -221,20 +224,20 @@ export function OnboardingView() {
   const cleanHandle = draft.username.trim() || 'Learner';
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#F7F8FA] text-[#0F172A]">
-      <header className="border-b border-slate-200 bg-white/95 backdrop-blur-sm">
-        <div className="mx-auto flex h-16 max-w-2xl items-center gap-4 px-4 sm:px-6">
+    <ScenicBackdrop className="text-[#0F172A]">
+      <header className="shrink-0 border-b border-white/20 bg-blue-950/15 backdrop-blur-md">
+        <div className="mx-auto flex h-14 max-w-2xl items-center gap-4 px-4 sm:px-6">
           {prevStep ? (
             <button
               type="button"
               onClick={handleBack}
               aria-label="Previous step"
-              className="btn-juice inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:text-slate-950"
+              className="btn-juice inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/30 bg-white/15 text-white hover:bg-white/25"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             </button>
           ) : (
-            <BrandLogo size="sm" />
+            <BrandLogo size="sm" tone="light" />
           )}
 
           <div className="flex-1">
@@ -244,22 +247,22 @@ export function OnboardingView() {
               aria-valuemin={0}
               aria-valuemax={100}
               aria-label="Onboarding progress"
-              className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200"
+              className="h-2 w-full overflow-hidden rounded-full bg-white/25"
             >
               <div
-                className="h-full rounded-full bg-blue-600 transition-all duration-300 ease-out"
+                className="h-full rounded-full bg-white transition-all duration-300 ease-out"
                 style={{ width: `${progress.percent}%` }}
               />
             </div>
           </div>
 
-          <span className="shrink-0 font-mono text-xs font-semibold text-slate-500 tabular-nums">
+          <span className="shrink-0 font-mono text-xs font-semibold text-white/90 tabular-nums">
             {progress.label}
           </span>
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-xl flex-1 flex-col justify-center px-4 py-8 sm:px-6">
+      <main className="mx-auto flex w-full max-w-xl flex-1 items-center justify-center overflow-hidden px-4 py-3 sm:px-6">
         <div
           key={currentStep}
           className={`w-full ${
@@ -269,9 +272,9 @@ export function OnboardingView() {
             {currentStep === 'username' && (
               <form
                 onSubmit={handleNextFromUsername}
-                className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 sm:p-8"
+                className="space-y-5 rounded-3xl border border-white/80 bg-white/95 p-5 shadow-[0_28px_70px_-18px_rgba(15,23,42,0.34)] backdrop-blur-xl sm:p-7"
               >
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <span className="font-mono text-xs font-semibold text-blue-700">
                     HANDLE
                   </span>
@@ -305,7 +308,7 @@ export function OnboardingView() {
                         setDraft((prev) => ({ ...prev, username: e.target.value }));
                       }}
                       placeholder="ada_lovelace"
-                      className="min-h-13 w-full rounded-xl border-2 border-slate-200 bg-white pl-11 pr-4 font-display text-lg font-semibold text-slate-950 placeholder:font-sans placeholder:text-base placeholder:font-normal placeholder:text-slate-400 focus:border-blue-600 focus:outline-none"
+                      className="min-h-12 w-full rounded-xl border-2 border-slate-200 bg-white pl-11 pr-4 font-display text-lg font-semibold text-slate-950 placeholder:font-sans placeholder:text-base placeholder:font-normal placeholder:text-slate-400 focus:border-blue-600 focus:outline-none"
                     />
                   </div>
                 </div>
@@ -322,7 +325,7 @@ export function OnboardingView() {
 
                 <button
                   type="submit"
-                  className="btn-juice group flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-6 py-3 text-sm font-bold text-white hover:bg-blue-700"
+                  className="btn-juice group flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-blue-700"
                 >
                   <span>Continue</span>
                   <ArrowRight
@@ -334,8 +337,8 @@ export function OnboardingView() {
             )}
 
             {currentStep === 'language' && (
-              <div className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 sm:p-8">
-                <div className="space-y-1.5">
+              <div className="space-y-4 rounded-3xl border border-white/80 bg-white/95 p-5 shadow-[0_28px_70px_-18px_rgba(15,23,42,0.34)] backdrop-blur-xl sm:p-7">
+                <div className="space-y-1">
                   <span className="font-mono text-xs font-semibold text-blue-700">
                     LANGUAGE
                   </span>
@@ -347,7 +350,7 @@ export function OnboardingView() {
                   </p>
                 </div>
 
-                <div className="space-y-2.5">
+                <div className="grid grid-cols-2 gap-2.5">
                   {SUPPORTED_LANGUAGES.map((lang) => {
                     const selected = draft.preferredLanguage === lang.id;
                     return (
@@ -358,33 +361,33 @@ export function OnboardingView() {
                           setDraft((prev) => ({ ...prev, preferredLanguage: lang.id }))
                         }
                         aria-pressed={selected}
-                        className={`btn-juice group relative flex w-full items-center justify-between gap-3 overflow-hidden rounded-2xl border-2 bg-white p-4 text-left ${
+                        className={`btn-juice group relative flex items-center justify-between gap-2 overflow-hidden rounded-2xl border-2 bg-white px-3.5 py-3 text-left ${
                           selected
                             ? 'border-blue-600'
                             : 'border-slate-200 hover:border-slate-300'
                         }`}
                       >
-                        <div className="relative z-10 pr-10">
-                          <div className="font-display text-base font-bold text-slate-950">
+                        <div className="relative z-10 min-w-0 pr-5">
+                          <div className="font-display text-sm font-bold text-slate-950 sm:text-base">
                             {lang.name}
                           </div>
-                          <div className="font-mono text-xs text-slate-500">
+                          <div className="truncate font-mono text-[11px] text-slate-500">
                             {lang.standardLabel}
                           </div>
                         </div>
                         <span
                           aria-hidden="true"
-                          className={`relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${
+                          className={`relative z-10 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
                             selected
                               ? 'border-blue-600 bg-blue-600 text-white'
                               : 'border-slate-300 bg-white text-transparent'
                           }`}
                         >
-                          <Check className="h-3.5 w-3.5" />
+                          <Check className="h-3 w-3" />
                         </span>
                         <LanguageIcon
                           language={lang.id}
-                          className={`pointer-events-none absolute -right-2 -bottom-3 h-16 w-16 -rotate-12 transition-transform duration-200 group-hover:scale-110 ${
+                          className={`pointer-events-none absolute -right-2 -bottom-2.5 h-12 w-12 -rotate-12 transition-transform duration-200 group-hover:scale-110 ${
                             selected ? 'opacity-[0.34]' : 'opacity-[0.22]'
                           }`}
                         />
@@ -396,7 +399,7 @@ export function OnboardingView() {
                 <button
                   type="button"
                   onClick={() => goToStep('welcome', 1)}
-                  className="btn-juice group flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-6 py-3 text-sm font-bold text-white hover:bg-blue-700"
+                  className="btn-juice group flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-blue-700"
                 >
                   <span>Continue</span>
                   <ArrowRight
@@ -408,12 +411,12 @@ export function OnboardingView() {
             )}
 
             {currentStep === 'welcome' && (
-              <div className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 text-center sm:p-10">
+              <div className="space-y-5 rounded-3xl border border-white/80 bg-white/95 p-6 text-center shadow-[0_28px_70px_-18px_rgba(15,23,42,0.34)] backdrop-blur-xl sm:p-8">
                 <div className="mx-auto flex justify-center">
-                  <LanguageIcon language={selectedLang.id} className="h-12 w-12" />
+                  <LanguageIcon language={selectedLang.id} className="h-11 w-11" />
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <span className="font-mono text-xs font-semibold text-blue-700">
                     GREAT CHOICE, @{cleanHandle}
                   </span>
@@ -425,7 +428,7 @@ export function OnboardingView() {
                   </p>
                 </div>
 
-                <div className="flex flex-wrap justify-center gap-2 rounded-xl border border-slate-200 bg-white p-4">
+                <div className="flex flex-wrap justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5">
                   {selectedLang.keyConstructs.slice(0, 4).map((item) => (
                     <span
                       key={item}
@@ -439,7 +442,7 @@ export function OnboardingView() {
                 <button
                   type="button"
                   onClick={() => goToStep('level', 1)}
-                  className="btn-juice group flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-6 py-3 text-sm font-bold text-white hover:bg-blue-700"
+                  className="btn-juice group flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-blue-700"
                 >
                   <span>Dial In Your Level</span>
                   <ArrowRight
@@ -451,20 +454,20 @@ export function OnboardingView() {
             )}
 
             {currentStep === 'level' && (
-              <div className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 sm:p-8">
-                <div className="space-y-1.5">
+              <div className="space-y-4 rounded-3xl border border-white/80 bg-white/95 p-5 shadow-[0_28px_70px_-18px_rgba(15,23,42,0.34)] backdrop-blur-xl sm:p-7">
+                <div className="space-y-1">
                   <span className="font-mono text-xs font-semibold text-blue-700">
                     SKILL RANK
                   </span>
                   <h1 className="font-display text-2xl font-bold text-slate-950 sm:text-3xl">
                     What&apos;s your {selectedLang.name} rank?
                   </h1>
-                  <p className="text-sm text-slate-600">
+                  <p className="text-xs text-slate-600 sm:text-sm">
                     We match module complexity and challenge hints to your tier.
                   </p>
                 </div>
 
-                <div className="space-y-2.5">
+                <div className="space-y-2">
                   {SKILL_LEVELS.map((lvl) => {
                     const selected = draft.skillLevel === lvl.id;
                     const CornerIcon = SKILL_CORNER_ICON[lvl.id];
@@ -476,31 +479,31 @@ export function OnboardingView() {
                           setDraft((prev) => ({ ...prev, skillLevel: lvl.id }))
                         }
                         aria-pressed={selected}
-                        className={`btn-juice group relative flex w-full items-center justify-between gap-3 overflow-hidden rounded-2xl border-2 bg-white px-4 py-3.5 text-left ${
+                        className={`btn-juice group relative flex w-full items-center justify-between gap-3 overflow-hidden rounded-2xl border-2 bg-white px-3.5 py-2.5 text-left ${
                           selected
                             ? 'border-blue-600'
                             : 'border-slate-200 hover:border-slate-300'
                         }`}
                       >
                         <div className="relative z-10">
-                          <div className="font-display text-base font-bold text-slate-950">
+                          <div className="font-display text-sm font-bold text-slate-950 sm:text-base">
                             {lvl.label}
                           </div>
                           <div className="text-xs text-slate-500">{lvl.tag}</div>
                         </div>
                         <span
                           aria-hidden="true"
-                          className={`relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${
+                          className={`relative z-10 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
                             selected
                               ? 'border-blue-600 bg-blue-600 text-white'
                               : 'border-slate-300 bg-white text-transparent'
                           }`}
                         >
-                          <Check className="h-3.5 w-3.5" />
+                          <Check className="h-3 w-3" />
                         </span>
                         <CornerIcon
                           aria-hidden="true"
-                          className={`pointer-events-none absolute -right-2 -bottom-3 h-16 w-16 -rotate-12 transition-transform duration-200 group-hover:scale-110 ${
+                          className={`pointer-events-none absolute -right-2 -bottom-3 h-14 w-14 -rotate-12 transition-transform duration-200 group-hover:scale-110 ${
                             selected
                               ? 'text-blue-600 opacity-[0.14]'
                               : 'text-slate-400 opacity-[0.12]'
@@ -514,7 +517,7 @@ export function OnboardingView() {
                 <button
                   type="button"
                   onClick={() => goToStep('focus', 1)}
-                  className="btn-juice group flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-6 py-3 text-sm font-bold text-white hover:bg-blue-700"
+                  className="btn-juice group flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-blue-700"
                 >
                   <span>Continue</span>
                   <ArrowRight
@@ -526,8 +529,8 @@ export function OnboardingView() {
             )}
 
             {currentStep === 'focus' && (
-              <div className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 sm:p-8">
-                <div className="space-y-1.5">
+              <div className="space-y-4 rounded-3xl border border-white/80 bg-white/95 p-5 shadow-[0_28px_70px_-18px_rgba(15,23,42,0.34)] backdrop-blur-xl sm:p-7">
+                <div className="space-y-1">
                   <span className="font-mono text-xs font-semibold text-blue-700">
                     LEARNING FOCUS
                   </span>
@@ -539,7 +542,7 @@ export function OnboardingView() {
                   </p>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {LEARNING_FOCUS_OPTIONS.map((opt) => {
                     const selected = draft.learningFocus === opt.id;
                     const CornerIcon = opt.id === 'syntax' ? Code2 : Terminal;
@@ -551,14 +554,14 @@ export function OnboardingView() {
                           setDraft((prev) => ({ ...prev, learningFocus: opt.id }))
                         }
                         aria-pressed={selected}
-                        className={`btn-juice group relative flex w-full items-center justify-between gap-4 overflow-hidden rounded-2xl border-2 bg-white p-5 text-left ${
+                        className={`btn-juice group relative flex w-full items-center justify-between gap-4 overflow-hidden rounded-2xl border-2 bg-white p-4 text-left ${
                           selected
                             ? 'border-blue-600'
                             : 'border-slate-200 hover:border-slate-300'
                         }`}
                       >
                         <div className="relative z-10">
-                          <div className="font-display text-lg font-bold text-slate-950">
+                          <div className="font-display text-base font-bold text-slate-950 sm:text-lg">
                             {opt.label}
                           </div>
                           <div className="mt-0.5 text-xs text-slate-600">
@@ -577,7 +580,7 @@ export function OnboardingView() {
                         </span>
                         <CornerIcon
                           aria-hidden="true"
-                          className={`pointer-events-none absolute -right-2 -bottom-3 h-20 w-20 -rotate-12 transition-transform duration-200 group-hover:scale-110 ${
+                          className={`pointer-events-none absolute -right-2 -bottom-3 h-16 w-16 -rotate-12 transition-transform duration-200 group-hover:scale-110 ${
                             selected
                               ? 'text-blue-600 opacity-[0.14]'
                               : 'text-slate-400 opacity-[0.12]'
@@ -591,7 +594,7 @@ export function OnboardingView() {
                 <button
                   type="button"
                   onClick={() => goToStep('blueprint', 1)}
-                  className="btn-juice group flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-6 py-3 text-sm font-bold text-white hover:bg-blue-700"
+                  className="btn-juice group flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-blue-700"
                 >
                   <span>Continue</span>
                   <ArrowRight
@@ -603,10 +606,10 @@ export function OnboardingView() {
             )}
 
             {currentStep === 'blueprint' && (
-              <div className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 text-center sm:p-10">
-                <Layers className="mx-auto h-10 w-10 text-blue-600" aria-hidden="true" />
+              <div className="space-y-5 rounded-3xl border border-white/80 bg-white/95 p-6 text-center shadow-[0_28px_70px_-18px_rgba(15,23,42,0.34)] backdrop-blur-xl sm:p-8">
+                <Layers className="mx-auto h-9 w-9 text-blue-600" aria-hidden="true" />
 
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <span className="font-mono text-xs font-semibold text-blue-700">
                     CURRICULUM CALIBRATED
                   </span>
@@ -618,7 +621,7 @@ export function OnboardingView() {
                   </p>
                 </div>
 
-                <div className="grid grid-cols-3 divide-x divide-slate-200 rounded-xl border border-slate-200 bg-white py-3.5 text-center">
+                <div className="grid grid-cols-3 divide-x divide-slate-200 rounded-xl border border-slate-200 bg-slate-50/70 py-3 text-center">
                   <div>
                     <div className="font-mono text-[11px] text-slate-500">RANK</div>
                     <div className="mt-0.5 font-display text-sm font-bold text-slate-950">
@@ -642,7 +645,7 @@ export function OnboardingView() {
                 <button
                   type="button"
                   onClick={() => goToStep('goal', 1)}
-                  className="btn-juice group flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-6 py-3 text-sm font-bold text-white hover:bg-blue-700"
+                  className="btn-juice group flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-blue-700"
                 >
                   <span>Set Your Daily Pace</span>
                   <ArrowRight
@@ -654,16 +657,16 @@ export function OnboardingView() {
             )}
 
             {currentStep === 'goal' && (
-              <div className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 sm:p-8">
+              <div className="space-y-4 rounded-3xl border border-white/80 bg-white/95 p-5 shadow-[0_28px_70px_-18px_rgba(15,23,42,0.34)] backdrop-blur-xl sm:p-7">
                 <div className="flex items-start justify-between gap-4">
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     <span className="font-mono text-xs font-semibold text-blue-700">
                       DAILY GOAL
                     </span>
                     <h1 className="font-display text-2xl font-bold text-slate-950 sm:text-3xl">
                       Pick a daily module goal
                     </h1>
-                    <p className="text-sm text-slate-600">
+                    <p className="text-xs text-slate-600 sm:text-sm">
                       Stay consistent to fill your ring and grow your streak.
                     </p>
                   </div>
@@ -679,12 +682,12 @@ export function OnboardingView() {
                       remaining: Math.max(0, draft.dailyModuleGoal - 1),
                       isGoalMet: draft.dailyModuleGoal <= 1,
                     }}
-                    size={54}
+                    size={50}
                     strokeWidth={5}
                   />
                 </div>
 
-                <div className="space-y-2.5">
+                <div className="grid grid-cols-2 gap-2.5">
                   {DAILY_GOAL_PRESETS.map((preset) => {
                     const selected = draft.dailyModuleGoal === preset.modules;
                     const CornerIcon = GOAL_CORNER_ICON[preset.modules] ?? Flame;
@@ -699,31 +702,31 @@ export function OnboardingView() {
                           }))
                         }
                         aria-pressed={selected}
-                        className={`btn-juice group relative flex w-full items-center justify-between overflow-hidden rounded-2xl border-2 bg-white px-4 py-3.5 text-left ${
+                        className={`btn-juice group relative flex items-center justify-between gap-2 overflow-hidden rounded-2xl border-2 bg-white p-3.5 text-left ${
                           selected
                             ? 'border-blue-600'
                             : 'border-slate-200 hover:border-slate-300'
                         }`}
                       >
-                        <div className="relative z-10">
-                          <div className="font-mono text-sm font-bold text-slate-950 tabular-nums">
+                        <div className="relative z-10 min-w-0">
+                          <div className="font-mono text-xs font-bold text-slate-950 tabular-nums sm:text-sm">
                             {preset.modules} {preset.modules === 1 ? 'module' : 'modules'}/day
                           </div>
-                          <div className="text-xs text-slate-500">{preset.label}</div>
+                          <div className="text-[11px] text-slate-500 sm:text-xs">{preset.label}</div>
                         </div>
                         <span
                           aria-hidden="true"
-                          className={`relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${
+                          className={`relative z-10 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
                             selected
                               ? 'border-blue-600 bg-blue-600 text-white'
                               : 'border-slate-300 bg-white text-transparent'
                           }`}
                         >
-                          <Check className="h-3.5 w-3.5" />
+                          <Check className="h-3 w-3" />
                         </span>
                         <CornerIcon
                           aria-hidden="true"
-                          className={`pointer-events-none absolute -right-2 -bottom-3 h-16 w-16 -rotate-12 transition-transform duration-200 group-hover:scale-110 ${
+                          className={`pointer-events-none absolute -right-2 -bottom-2.5 h-12 w-12 -rotate-12 transition-transform duration-200 group-hover:scale-110 ${
                             selected
                               ? 'text-blue-600 opacity-[0.14]'
                               : 'text-slate-400 opacity-[0.12]'
@@ -737,7 +740,7 @@ export function OnboardingView() {
                 <button
                   type="button"
                   onClick={() => goToStep('ready', 1)}
-                  className="btn-juice group flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-6 py-3 text-sm font-bold text-white hover:bg-blue-700"
+                  className="btn-juice group flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-blue-700"
                 >
                   <span>Continue</span>
                   <ArrowRight
@@ -749,13 +752,13 @@ export function OnboardingView() {
             )}
 
             {currentStep === 'ready' && (
-              <div className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 text-center sm:p-10">
+              <div className="space-y-5 rounded-3xl border border-white/80 bg-white/95 p-6 text-center shadow-[0_28px_70px_-18px_rgba(15,23,42,0.34)] backdrop-blur-xl sm:p-8">
                 <Flame
-                  className="mx-auto h-10 w-10 fill-amber-500/20 text-amber-500"
+                  className="mx-auto h-9 w-9 fill-amber-500/20 text-amber-500"
                   aria-hidden="true"
                 />
 
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <span className="font-mono text-xs font-semibold text-emerald-700">
                     PROFILE COMPLETE
                   </span>
@@ -767,7 +770,7 @@ export function OnboardingView() {
                   </p>
                 </div>
 
-                <div className="rounded-xl border border-slate-200 bg-white p-4 text-left text-xs text-slate-700">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 text-left text-xs text-slate-700">
                   <div className="flex items-center justify-between py-1">
                     <span className="text-slate-500">Language</span>
                     <span className="font-mono font-bold text-slate-950">
@@ -802,7 +805,7 @@ export function OnboardingView() {
                   type="button"
                   disabled={submitting}
                   onClick={() => void handleFinishAndGenerate()}
-                  className="btn-juice group flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-6 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+                  className="btn-juice group flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60"
                 >
                   {submitting ? (
                     <>
@@ -823,6 +826,6 @@ export function OnboardingView() {
             )}
         </div>
       </main>
-    </div>
+    </ScenicBackdrop>
   );
 }

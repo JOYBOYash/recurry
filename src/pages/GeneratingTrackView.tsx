@@ -233,11 +233,34 @@ export function GeneratingTrackView() {
 
         {isGenerating ? (
           <section className="animate-view-enter rounded-2xl border border-slate-200 bg-white p-8 text-center sm:p-12">
-            <Loader2
-              className="mx-auto h-9 w-9 animate-spin text-blue-600"
-              aria-hidden="true"
-            />
-            <h1 className="mt-5 font-display text-2xl font-bold text-slate-950">
+            {(() => {
+              const progressPct =
+                stageIndex >= 3 ? 90 : stageIndex === 2 ? 62 : 30;
+              return (
+                <div className="mx-auto max-w-sm space-y-2">
+                  <div className="flex items-center justify-between font-mono text-[11px] font-semibold text-slate-500 tabular-nums">
+                    <span>
+                      Step {Math.min(Math.max(stageIndex, 1), 3)} of 3
+                    </span>
+                    <span className="text-blue-700">{progressPct}%</span>
+                  </div>
+                  <div
+                    role="progressbar"
+                    aria-label="Curriculum generation progress"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={progressPct}
+                    className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100"
+                  >
+                    <div
+                      style={{ width: `${progressPct}%` }}
+                      className="h-full rounded-full bg-blue-600 transition-all duration-700 ease-out"
+                    />
+                  </div>
+                </div>
+              );
+            })()}
+            <h1 className="mt-6 font-display text-2xl font-bold text-slate-950">
               Generating your curriculum
             </h1>
             <p className="mt-1 text-xs text-slate-500">

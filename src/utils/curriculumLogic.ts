@@ -228,6 +228,24 @@ export function calculateTrackProgress(
   };
 }
 
+export interface TrackCompletionSnapshot {
+  trackId: string;
+  isComplete: boolean;
+}
+
+export function shouldTriggerTrackCelebration(
+  prev: TrackCompletionSnapshot | null,
+  next: TrackCompletionSnapshot,
+): boolean {
+  if (!prev) {
+    return false;
+  }
+  if (prev.trackId !== next.trackId) {
+    return false;
+  }
+  return !prev.isComplete && next.isComplete;
+}
+
 export function computeLearningStats(
   tracks: CurriculumTrack[],
   completedModuleIds: string[],
