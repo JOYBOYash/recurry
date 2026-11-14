@@ -1,16 +1,8 @@
 import { useState } from 'react';
-import {
-  ArrowUpRight,
-  Check,
-  Copy,
-  Terminal,
-} from 'lucide-react';
+import { ArrowUpRight, Check, Copy, Terminal } from 'lucide-react';
 import { FaGithub } from 'react-icons/fa6';
 import { Link } from 'react-router-dom';
-import {
-  REPO_CLONE_COMMAND,
-  REPO_URL,
-} from '../data/landingContent';
+import { REPO_CLONE_COMMAND, REPO_URL } from '../data/landingContent';
 
 interface FooterWithGithubProps {
   primaryDestination: string;
@@ -32,31 +24,40 @@ export function FooterWithGithub({ primaryDestination }: FooterWithGithubProps) 
   return (
     <footer
       id="github"
-      className="border-t border-slate-200 bg-white text-[#0F172A] scroll-mt-16"
+      className="relative flex min-h-[85vh] flex-col justify-between overflow-hidden border-t border-slate-200 bg-white text-[#0F172A] scroll-mt-16 lg:min-h-[92vh]"
     >
-      <div className="mx-auto max-w-6xl space-y-10 px-4 py-12 sm:px-6 lg:px-8 lg:py-14">
-        {/* Open Source Repo Bar */}
+      {/* Full inverted clouds expanse fading gently across the tall footer so footer floats above the clouds */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-[620px] overflow-hidden sm:h-[740px] lg:h-[820px]"
+      >
+        <img
+          src="/assets/images/parallax-clouds.webp"
+          alt=""
+          className="h-full w-full -scale-y-100 object-cover object-top opacity-95"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-white via-white/85 via-38% to-transparent" />
+      </div>
+
+      {/* Upper white footer area: Open-source codebase + Navigation */}
+      <div className="relative z-10 mx-auto w-full max-w-6xl space-y-10 px-4 pt-12 sm:px-6 lg:px-8 lg:pt-16">
         <div
           id="credits"
           className="flex flex-col justify-between gap-6 lg:flex-row lg:items-center"
         >
           <div className="space-y-1.5">
-            <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-700">
-              <FaGithub className="h-4 w-4 text-slate-950" aria-hidden="true" />
-              <span>Open Source</span>
-            </div>
             <h2 className="font-display text-2xl font-bold text-slate-950 sm:text-3xl">
               Explore the recurry codebase
             </h2>
-            <p className="max-w-xl text-sm text-slate-600">
+            <p className="max-w-md text-sm text-slate-600">
               Open-source curriculum engine, syntax lexer, daily goal tracking, and Firestore rules.
             </p>
           </div>
 
-          <div className="flex min-w-0 flex-wrap items-center gap-2.5 lg:flex-nowrap lg:justify-end">
-            <div className="flex max-w-full min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-[#F7F8FA] px-3 py-2 font-mono text-xs text-slate-700">
+          <div className="flex min-w-0 flex-wrap items-center gap-2.5 lg:shrink-0 lg:flex-nowrap lg:justify-end">
+            <div className="flex max-w-full min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-[#F7F8FA]/95 px-3 py-2 font-mono text-xs text-slate-700 backdrop-blur-xs">
               <Terminal className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden="true" />
-              <span className="max-w-[180px] truncate sm:max-w-[260px] xl:max-w-none">
+              <span className="max-w-[200px] truncate sm:max-w-none">
                 {REPO_CLONE_COMMAND}
               </span>
               <button
@@ -93,7 +94,7 @@ export function FooterWithGithub({ primaryDestination }: FooterWithGithubProps) 
         </div>
 
         {/* Structured Footer Navigation */}
-        <div className="grid gap-8 border-t border-slate-200 pt-10 sm:grid-cols-2 lg:grid-cols-12">
+        <div className="grid gap-8 border-t border-slate-200/80 pt-10 sm:grid-cols-2 lg:grid-cols-12">
           <div className="space-y-2.5 lg:col-span-5">
             <Link
               to="/"
@@ -123,7 +124,7 @@ export function FooterWithGithub({ primaryDestination }: FooterWithGithubProps) 
               </li>
               <li>
                 <a href="#how" className="hover:text-slate-950">
-                  How It Works
+                  Workflow
                 </a>
               </li>
               <li>
@@ -180,11 +181,13 @@ export function FooterWithGithub({ primaryDestination }: FooterWithGithubProps) 
             </a>
           </div>
         </div>
+      </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 pt-6 text-xs text-slate-500">
-          <span>recurry · Open Curriculum Platform</span>
-          <span>MIT License · Built with Gemini AI, Firebase &amp; React</span>
-        </div>
+      {/* Bottom atmospheric sign-off floating above the emerging clouds */}
+      <div className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-8 pt-28 text-center sm:px-6 lg:px-8">
+        <p className="text-xs font-semibold text-slate-900 drop-shadow-[0_1px_8px_rgba(255,255,255,0.95)]">
+          Built with 💙 from India.
+        </p>
       </div>
     </footer>
   );
