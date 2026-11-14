@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import { SUPPORTED_LANGUAGES } from './languages';
 import {
   FAQ_ITEMS,
@@ -39,5 +41,36 @@ test('FAQ items and repository architecture modules are concise and non-empty', 
     assert.ok(mod.path.length > 0);
     assert.ok(mod.testFile.endsWith('.test.ts'));
     assert.ok(mod.snippet.trim().length > 15);
+  }
+});
+
+test('index.html includes valid Organization and FAQPage JSON-LD synced with FAQ_ITEMS and OpenGraph tags', () => {
+  const html = fs.readFileSync(path.resolve(process.cwd(), 'index.html'), 'utf8');
+  assert.match(html, /rel="icon"[^>]+href="\/assets\/images\/app-logo\.png"/);
+  assert.match(html, /property="og:image"[^>]+og-preview\.jpg/);
+  assert.match(html, /name="twitter:card"\s+content="summary_large_image"/);
+
+  const jsonLdMatch = html.match(
+    /<script type="application\/ld\+json">\s*([\s\S]*?)\s*<\/script>/,
+  );
+  assert.ok(jsonLdMatch, 'Expected application/ld+json script in index.html');
+  const parsed = JSON.parse(jsonLdMatch[1]) as {
+    '@graph': Array<Record<string, unknown>>;
+  };
+  const types = parsed['@graph'].map((entry) => entry['@type']);
+  assert.ok(types.includes('Organization'));
+  assert.ok(types.includes('WebApplication'));
+  assert.ok(types.includes('FAQPage'));
+
+  const faqSchema = parsed['@graph'].find((e) => e['@type'] === 'FAQPage') as {
+    mainEntity: Array<{ name: string; acceptedAnswer: { text: string } }>;
+  };
+  assert.equal(faqSchema.mainEntity.length, FAQ_ITEMS.length);
+  for (let i = 0; i < FAQ_ITEMS.length; i += 1) {
+    assert.equal(faqSchema.mainEntity[i].name, FAQ_ITEMS[i].question);
+    assert.equal(
+      faqSchema.mainEntity[i].acceptedAnswer.text,
+      FAQ_ITEMS[i].answer,
+    );
   }
 });

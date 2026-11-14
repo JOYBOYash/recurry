@@ -3,12 +3,153 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>recurry — Personalized Language Syntax & Usage Platform</title>
-    <meta name="description" content="Personalized syntax and usage curriculum platform for SQL, Java, C++, Python, JavaScript, and Ruby powered by Gemini." />
-    <meta property="og:title" content="recurry — Personalized Language Syntax & Usage Platform" />
-    <meta property="og:description" content="Master complete syntax and idiomatic usage across SQL, Java, C++, Python, JavaScript, and Ruby with AI-tailored curricula." />
+    <title>recurry — Tailored Syntax & Coding Practice Platform</title>
+    <meta
+      name="description"
+      content="Practice SQL, Java, C++, Python, JavaScript, and Ruby with personalized syntax lessons, instant code checks, daily goals, and 1–5 star certificates."
+    />
+    <link rel="canonical" href="https://recurry.vercel.app/" />
+    <meta name="theme-color" content="#2563EB" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" href="/assets/images/app-logo.png" />
+    <link rel="apple-touch-icon" href="/assets/images/app-logo.png" />
+
+    <!-- OpenGraph -->
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="recurry" />
+    <meta property="og:url" content="https://recurry.vercel.app/" />
+    <meta property="og:title" content="recurry — Write better code, tailored to your skill." />
+    <meta
+      property="og:description"
+      content="Generate one custom syntax track per day across SQL, Java, C++, Python, JavaScript, and Ruby with live code checks and star-ranked certificates."
+    />
+    <meta property="og:image" content="https://recurry.vercel.app/assets/images/og-preview.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="recurry preview banner showing the app emblem and syntax bars across SQL, Java, C++, Python, JavaScript, and Ruby"
+    />
+
+    <!-- Twitter / X -->
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="recurry — Write better code, tailored to your skill." />
+    <meta
+      name="twitter:description"
+      content="Practice SQL, Java, C++, Python, JavaScript, and Ruby with personalized lessons, instant code evaluation, and 1–5 star certificates."
+    />
+    <meta name="twitter:image" content="https://recurry.vercel.app/assets/images/og-preview.jpg" />
+    <meta
+      name="twitter:image:alt"
+      content="recurry — Personalized coding syntax and practice platform across six languages"
+    />
+
+    <!-- Structured Data: Organization, WebApplication, and FAQPage -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://recurry.vercel.app/#organization",
+            "name": "recurry",
+            "url": "https://recurry.vercel.app/",
+            "logo": "https://recurry.vercel.app/assets/images/app-logo.png",
+            "sameAs": [
+              "https://github.com/JOYBOYash/recurry"
+            ]
+          },
+          {
+            "@type": "WebApplication",
+            "@id": "https://recurry.vercel.app/#webapp",
+            "name": "recurry",
+            "url": "https://recurry.vercel.app/",
+            "applicationCategory": "EducationalApplication",
+            "operatingSystem": "All",
+            "description": "Personalized syntax and problem-solving platform across SQL, Java, C++, Python, JavaScript, and Ruby with instant code checks and star-ranked certificates.",
+            "publisher": {
+              "@id": "https://recurry.vercel.app/#organization"
+            },
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD"
+            }
+          },
+          {
+            "@type": "FAQPage",
+            "@id": "https://recurry.vercel.app/#faq",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "Why is curriculum generation limited to 1 per day?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Every account gets 1 free AI-tailored curriculum per calendar day with zero subscriptions or paywalls. You can open, review, or redo all of your saved tracks anytime."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Do I need to supply my own Gemini API key?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. All curriculum generation and code evaluation runs securely through recurry server endpoints so you can start learning right after signing in."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Which languages and levels are supported?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "recurry supports SQL, Java, C++, Python, JavaScript, and Ruby—adapted across five ranks from Noob and Intern up to Expert, Master, and Legend."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "How are 1–5 star certificates graded?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Finish every module in a curriculum track to unlock a certificate. Your 1 to 5 star rating reflects your average challenge accuracy across the completed modules."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "How do the daily goal ring and streak counter work?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Pick a daily pace of 1 to 5 modules per day. Completing modules fills your navigation progress ring for the day and extends your consecutive active-day streak."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Can I redo completed curriculums to improve my star rating?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. Reopen any saved track from My Curriculums to reset and retake its modules. Improving your challenge accuracy updates your best score so you can earn a higher star certificate."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "What is the Syntax Reference tab?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Syntax Reference lets you generate and search side-by-side code comparisons for any programming concept across SQL, Java, C++, Python, JavaScript, and Ruby."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "How do skill ranks change my generated lessons?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Selecting Noob through Legend calibrates grammar depth, code complexity, challenge difficulty, and hints to match your current fluency."
+                }
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -18,4 +159,3 @@
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

@@ -48,10 +48,11 @@ Browser (React 19 + Vite + Tailwind CSS v4)
 ```
 
 ### Security & Quota Design
-- **Zero Client API Keys**: Gemini calls run strictly on the Express backend (`server.ts` + `server/geminiService.ts`) using `process.env.GEMINI_API_KEY`. Users never supply or store API keys in the browser.
-- **Token Verification**: Every `/api/*` mutation and `/api/quota` route requires a `Bearer <firebaseIdToken>` header verified via Firebase Identity Toolkit.
-- **Owner-Scoped Firestore Rules**: `firestore.rules` enforces default-deny, document ID validation, temporal integrity (`request.time`), strict field schemas (`firebase-blueprint.json`), immutable certificates, and `where('uid', '==', uid)` matching on subcollection queries.
-- **1 Curriculum/Day Quota**: Enforced both server-side (`server/store.ts`) and via Firestore rules (`dailyGenerationCount <= 1`). Existing saved tracks can always be opened, practiced, or redone anytime.
+- **Zero Client AI Keys**: Gemini calls run strictly on the Express backend (`server.ts` + `server/geminiService.ts`) using `process.env.GEMINI_API_KEY`. Users never supply or store API keys in the browser.
+- **Env-Only Configuration**: Both the Express backend (`server/config.ts`) and Vite client (`src/firebase.ts` / `src/utils/firebaseConfig.ts`) read configuration strictly from environment variables (`GEMINI_API_KEY`, `FIREBASE_API_KEY`, `VITE_FIREBASE_*`). `.env` is ignored via `.gitignore`.
+- **Token Verification & API Hardening**: Every `/api/*` mutation and `/api/quota` route requires a `Bearer <firebaseIdToken>` header verified via Firebase Identity Toolkit (rejecting disabled accounts), enforces strict CORS origin checks, sliding-window IP & per-user rate limits, bounded payload sizes (`128kb`), input clamping, sanitized error responses, and production security headers (CSP, HSTS, `nosniff`, `same-origin-allow-popups`).
+- **Owner-Scoped Firestore Access**: Client reads and writes are strictly scoped under `users/{uid}/...` with schema definitions documented in `firebase-blueprint.json` and enforced by your project's deployed Firestore security rules.
+- **1 Curriculum/Day Quota**: Enforced server-side (`server/store.ts`, configurable via `QUOTA_STORE_PATH`) and validated against Firestore daily generation counts (`dailyGenerationCount <= 1`). Existing saved tracks can always be opened, practiced, or redone anytime.
 
 ---
 
@@ -61,29 +62,32 @@ Browser (React 19 + Vite + Tailwind CSS v4)
 .
 ├── server.ts                       # Express server + Vite middleware (dev) / static dist (prod)
 ├── server/
+│   ├── config.ts                   # Environment configuration resolver
+│   ├── security.ts                 # Security headers, CORS, rate limiter & payload sanitizers
 │   ├── geminiService.ts            # Structured Gemini prompts & response schemas
 │   └── store.ts                    # Server-side daily curriculum quota tracking
-├── firestore.rules                 # Zero-trust Firestore security rules
-├── firestore.rules.test.ts         # Rules & query invariant tests
 ├── firebase-blueprint.json         # Firestore entity & path schema blueprint
+├── public/assets/images/           # Brand logos (app-logo.png, logo.svg), OG/IG social previews, parallax & halftone assets
 ├── src/
 │   ├── App.tsx                     # Router & protected route wrappers
+│   ├── firebase.ts                 # Firebase SDK bootstrap via Vite env vars
 │   ├── context/AppAuthContext.tsx  # Firebase Auth state & owner-scoped Firestore listeners
 │   ├── data/
 │   │   ├── languages.ts            # Language metadata, skill ranks, daily goals
 │   │   └── landingContent.ts       # Code showcases, FAQ items, repo config
 │   ├── utils/
 │   │   ├── curriculumLogic.ts      # Streaks, daily goal ring, accuracy/stars, quota helpers
+│   │   ├── firebaseConfig.ts       # Firebase client config resolver
 │   │   ├── onboardingSteps.ts      # 8-step onboarding state machine
 │   │   └── syntaxHighlight.ts      # Single-pass tokenizer (SQL, Java, C++, Python, JS, Ruby)
-│   ├── components/                 # Shared UI, Hero, SkillsShowcase, WhoItsFor, FAQ, Footer, Workspace views
+│   ├── components/                 # Shared UI, BrandLogo, Hero, SkillsShowcase, WhoItsFor, FAQ, Footer, Workspace views
 │   └── pages/                      # Route pages (Landing, Login, Onboarding, Generate, Curriculums, Learn, Reference, Certificates, Settings)
-└── .env.example                    # Required environment variables template
+└── .gitignore                      # Ignores .env*, dist/, node_modules/
 ```
 
 ---
 
-## Getting Started
+## Self-Hosting & Local Setup
 
 ### 1. Clone & Install
 
@@ -93,44 +97,42 @@ cd recurry
 npm install
 ```
 
-### 2. Configure Environment & Firebase
+### 2. Configure Firebase Project
 
-1. Copy `.env.example` to `.env` and set your server-side Gemini API key:
+1. Create a Firebase project in the [Firebase Console](https://console.firebase.google.com/) and register a **Web app**.
+2. Enable **Authentication** sign-in providers: **Google** and **Email/Password**.
+3. Under **Authentication → Settings → Authorized domains**, add your hosting domains (e.g., `localhost`, `your-domain.vercel.app`).
+4. Create a **Cloud Firestore** database (standard `(default)` database) and deploy owner-scoped security rules matching `firebase-blueprint.json`.
 
-```env
-GEMINI_API_KEY="your_gemini_api_key"
-APP_URL="http://localhost:3000"
-```
+### 3. Configure Environment Variables
 
-2. Ensure `firebase-applet-config.json` contains your Firebase web configuration (`apiKey`, `authDomain`, `projectId`, `firestoreDatabaseId`) with **Google** and **Email/Password** providers enabled in Firebase Authentication, and deploy `firestore.rules` to your Firestore database.
+Create a local `.env` file (or configure variables directly in your hosting provider; `Node.js 22.18+` recommended):
 
-### 3. Run Locally
+- **Server variables**: `GEMINI_API_KEY`, `FIREBASE_API_KEY`, `FIREBASE_PROJECT_ID`, `APP_URL`, `CORS_ORIGIN`, `FRAME_ANCESTORS="'self'"`, `NODE_ENV="production"`, `TRUST_PROXY="1"`, and optionally `QUOTA_STORE_PATH="/var/data/recurry-quotas.json"`.
+- **Client build variables (`VITE_FIREBASE_*`)**: `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_APP_ID` (must be present during `npm run build` so Vite embeds the public Firebase client config).
+
+### 4. Run Locally & Production Build
 
 ```bash
+# Development server (Express + Vite middleware on http://localhost:3000)
 npm run dev
-```
 
-The Express + Vite dev server starts on `http://localhost:3000`.
-
-### 4. Build, Typecheck & Test
-
-```bash
 # TypeScript typecheck
 npm run lint
 
-# Production build (Vite client bundle -> dist/)
+# Build production client bundle (requires VITE_FIREBASE_* env vars)
 npm run build
 
-# Start production server
-npm start
+# Start production server (Node 22.18+ native TypeScript support)
+NODE_ENV=production npm start
 
-# Run pure logic, lexer, onboarding, content, and Firestore rule tests
+# Run pure logic, lexer, onboarding, content, and security tests
 npx --yes tsx --test \
   src/utils/curriculumLogic.test.ts \
   src/utils/syntaxHighlight.test.ts \
   src/utils/onboardingSteps.test.ts \
   src/data/landingContent.test.ts \
-  firestore.rules.test.ts
+  server/security.test.ts
 ```
 
 ---

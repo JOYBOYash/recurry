@@ -5,9 +5,12 @@ import { SUPPORTED_LANGUAGES } from '../data/languages';
 
 const SKILL_RANKS = ['Noob', 'Intern', 'Expert', 'Master', 'Legend'];
 
+const FEATURE_IMAGES: Record<string, string> =
+  typeof __FEATURE_IMAGES__ !== 'undefined' ? __FEATURE_IMAGES__ : {};
+
 export function WhoItsForSection() {
   return (
-    <section id="who" className="space-y-10 scroll-mt-20">
+    <section id="who" className="space-y-10 scroll-mt-24">
       <ScrollReveal>
         <div className="mx-auto max-w-2xl space-y-3 text-center">
           <h2 className="font-display text-3xl font-bold tracking-tight text-slate-950 text-balance sm:text-4xl">
@@ -22,7 +25,7 @@ export function WhoItsForSection() {
       {/* Relay-inspired 2x2 Bento Feature Grid */}
       <div className="grid gap-6 md:grid-cols-2">
         {/* Card 1: Beginners & Switchers */}
-        <ScrollReveal delayMs={40}>
+        <ScrollReveal delayMs={40} variant="left">
           <article className="group flex h-full flex-col justify-between rounded-2xl border border-slate-200 bg-white p-6 transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 sm:p-8">
             <div className="space-y-1.5">
               <h3 className="font-display text-xl font-bold text-slate-950">
@@ -34,18 +37,26 @@ export function WhoItsForSection() {
             </div>
 
             <div
-              aria-hidden="true"
-              className="relative mt-6 flex h-56 items-center justify-center overflow-hidden rounded-xl border border-slate-200/80 bg-[#F7F8FA] p-5"
+              aria-hidden={!FEATURE_IMAGES['feature-1']}
+              className="relative mt-6 flex h-56 items-center justify-center overflow-hidden rounded-xl border border-slate-200/80 bg-[#F7F8FA]"
             >
-              <div
-                className="pointer-events-none absolute inset-0 opacity-60"
-                style={{
-                  backgroundImage:
-                    'radial-gradient(#CBD5E1 1px, transparent 1px)',
-                  backgroundSize: '16px 16px',
-                }}
-              />
-              <div className="relative z-10 flex w-full max-w-sm flex-col items-center gap-4">
+              {FEATURE_IMAGES['feature-1'] ? (
+                <img
+                  src={FEATURE_IMAGES['feature-1']}
+                  alt="Beginners and language switchers illustration"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="relative flex h-full w-full items-center justify-center p-5">
+                  <div
+                    className="pointer-events-none absolute inset-0 opacity-60"
+                    style={{
+                      backgroundImage:
+                        'radial-gradient(#CBD5E1 1px, transparent 1px)',
+                      backgroundSize: '16px 16px',
+                    }}
+                  />
+                  <div className="relative z-10 flex w-full max-w-sm flex-col items-center gap-4">
                 <div className="flex flex-wrap items-center justify-center gap-5">
                   {SUPPORTED_LANGUAGES.map((lang) => (
                     <div
@@ -66,14 +77,16 @@ export function WhoItsForSection() {
                   <span className="font-mono font-semibold text-blue-700">
                     → Java Stream
                   </span>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </article>
         </ScrollReveal>
 
         {/* Card 2: Rank-Calibrated Tracks */}
-        <ScrollReveal delayMs={100}>
+        <ScrollReveal delayMs={110} variant="right">
           <article className="group flex h-full flex-col justify-between rounded-2xl border border-slate-200 bg-white p-6 transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 sm:p-8">
             <div className="space-y-1.5">
               <h3 className="font-display text-xl font-bold text-slate-950">
@@ -85,18 +98,26 @@ export function WhoItsForSection() {
             </div>
 
             <div
-              aria-hidden="true"
-              className="relative mt-6 flex h-56 items-center justify-center overflow-hidden rounded-xl border border-slate-200/80 bg-[#F7F8FA] p-5"
+              aria-hidden={!FEATURE_IMAGES['feature-2']}
+              className="relative mt-6 flex h-56 items-center justify-center overflow-hidden rounded-xl border border-slate-200/80 bg-[#F7F8FA]"
             >
-              <div
-                className="pointer-events-none absolute inset-0 opacity-60"
-                style={{
-                  backgroundImage:
-                    'radial-gradient(#CBD5E1 1px, transparent 1px)',
-                  backgroundSize: '16px 16px',
-                }}
-              />
-              <div className="relative z-10 w-full max-w-sm space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+              {FEATURE_IMAGES['feature-2'] ? (
+                <img
+                  src={FEATURE_IMAGES['feature-2']}
+                  alt="Rank-calibrated learning tracks illustration"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="relative flex h-full w-full items-center justify-center p-5">
+                  <div
+                    className="pointer-events-none absolute inset-0 opacity-60"
+                    style={{
+                      backgroundImage:
+                        'radial-gradient(#CBD5E1 1px, transparent 1px)',
+                      backgroundSize: '16px 16px',
+                    }}
+                  />
+                  <div className="relative z-10 w-full max-w-sm space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-display font-bold text-slate-950">
                     Skill Calibration
@@ -124,14 +145,16 @@ export function WhoItsForSection() {
                   <span className="font-mono font-semibold text-slate-900">
                     6 modules
                   </span>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </article>
         </ScrollReveal>
 
         {/* Card 3: Instant AI Code Reviews */}
-        <ScrollReveal delayMs={140}>
+        <ScrollReveal delayMs={150} variant="left">
           <article className="group flex h-full flex-col justify-between rounded-2xl border border-slate-200 bg-white p-6 transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 sm:p-8">
             <div className="space-y-1.5">
               <h3 className="font-display text-xl font-bold text-slate-950">
@@ -143,18 +166,26 @@ export function WhoItsForSection() {
             </div>
 
             <div
-              aria-hidden="true"
-              className="relative mt-6 flex h-56 items-center justify-center overflow-hidden rounded-xl border border-slate-200/80 bg-[#F7F8FA] p-5"
+              aria-hidden={!FEATURE_IMAGES['feature-3']}
+              className="relative mt-6 flex h-56 items-center justify-center overflow-hidden rounded-xl border border-slate-200/80 bg-[#F7F8FA]"
             >
-              <div
-                className="pointer-events-none absolute inset-0 opacity-60"
-                style={{
-                  backgroundImage:
-                    'radial-gradient(#CBD5E1 1px, transparent 1px)',
-                  backgroundSize: '16px 16px',
-                }}
-              />
-              <div className="relative z-10 w-full max-w-sm space-y-2.5 rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+              {FEATURE_IMAGES['feature-3'] ? (
+                <img
+                  src={FEATURE_IMAGES['feature-3']}
+                  alt="Instant code review and syntax tutor illustration"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="relative flex h-full w-full items-center justify-center p-5">
+                  <div
+                    className="pointer-events-none absolute inset-0 opacity-60"
+                    style={{
+                      backgroundImage:
+                        'radial-gradient(#CBD5E1 1px, transparent 1px)',
+                      backgroundSize: '16px 16px',
+                    }}
+                  />
+                  <div className="relative z-10 w-full max-w-sm space-y-2.5 rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-display font-bold text-slate-950">
                     Syntax evaluation
@@ -179,14 +210,16 @@ export function WhoItsForSection() {
                   <span className="rounded-md border border-slate-200 bg-white px-3 py-1 font-semibold text-slate-600">
                     Ask Tutor
                   </span>
+                  </div>
                 </div>
               </div>
+              )}
             </div>
           </article>
         </ScrollReveal>
 
         {/* Card 4: Daily Rings & Certificates */}
-        <ScrollReveal delayMs={200}>
+        <ScrollReveal delayMs={210} variant="right">
           <article className="group flex h-full flex-col justify-between rounded-2xl border border-slate-200 bg-white p-6 transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 sm:p-8">
             <div className="space-y-1.5">
               <h3 className="font-display text-xl font-bold text-slate-950">
@@ -198,18 +231,26 @@ export function WhoItsForSection() {
             </div>
 
             <div
-              aria-hidden="true"
-              className="relative mt-6 flex h-56 items-center justify-center overflow-hidden rounded-xl border border-slate-200/80 bg-[#F7F8FA] p-5"
+              aria-hidden={!FEATURE_IMAGES['feature-4']}
+              className="relative mt-6 flex h-56 items-center justify-center overflow-hidden rounded-xl border border-slate-200/80 bg-[#F7F8FA]"
             >
-              <div
-                className="pointer-events-none absolute inset-0 opacity-60"
-                style={{
-                  backgroundImage:
-                    'radial-gradient(#CBD5E1 1px, transparent 1px)',
-                  backgroundSize: '16px 16px',
-                }}
-              />
-              <div className="relative z-10 flex w-full max-w-sm flex-col gap-3">
+              {FEATURE_IMAGES['feature-4'] ? (
+                <img
+                  src={FEATURE_IMAGES['feature-4']}
+                  alt="Daily goal rings, streaks, and star certificates illustration"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="relative flex h-full w-full items-center justify-center p-5">
+                  <div
+                    className="pointer-events-none absolute inset-0 opacity-60"
+                    style={{
+                      backgroundImage:
+                        'radial-gradient(#CBD5E1 1px, transparent 1px)',
+                      backgroundSize: '16px 16px',
+                    }}
+                  />
+                  <div className="relative z-10 flex w-full max-w-sm flex-col gap-3">
                 <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-xs">
                   <div className="flex items-center gap-3">
                     <svg className="h-9 w-9 -rotate-90" viewBox="0 0 36 36">
@@ -231,6 +272,7 @@ export function WhoItsForSection() {
                         strokeDasharray="88"
                         strokeDashoffset="18"
                         strokeLinecap="round"
+                        className="goal-ring-arc"
                       />
                     </svg>
                     <div>
@@ -261,8 +303,10 @@ export function WhoItsForSection() {
                     <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
                     5 / 5
                   </span>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </article>
         </ScrollReveal>

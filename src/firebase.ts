@@ -1,11 +1,38 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-import { doc, getDocFromServer, getFirestore } from 'firebase/firestore';
-import firebaseConfig from '../firebase-applet-config.json';
+import { initializeApp, type FirebaseApp } from 'firebase/app';
+import { getAuth, GoogleAuthProvider, type Auth } from 'firebase/auth';
+import {
+  doc,
+  getDocFromServer,
+  getFirestore,
+  type Firestore,
+} from 'firebase/firestore';
+import {
+  resolveFirebaseClientConfig,
+  type FirebaseFallbackConfig,
+} from './utils/firebaseConfig';
 
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-export const auth = getAuth(app);
+const fallbackModules = import.meta.glob<{ default?: FirebaseFallbackConfig }>(
+  '../firebase-applet-config.json',
+  { eager: true },
+);
+const fallbackEntry = Object.values(fallbackModules)[0];
+const fallbackConfig = fallbackEntry?.default ?? (fallbackEntry as FirebaseFallbackConfig | undefined) ?? null;
+
+const resolved = resolveFirebaseClientConfig(import.meta.env, fallbackConfig);
+
+export const isFirebaseConfigured = resolved.source !== 'unconfigured';
+
+if (!isFirebaseConfigured) {
+  console.error(
+    'Firebase is not configured. Set VITE_FIREBASE_API_KEY, VITE_FIREBASE_PROJECT_ID, and VITE_FIREBASE_APP_ID in your environment.',
+  );
+}
+
+const app: FirebaseApp = initializeApp(resolved.firebaseConfig);
+export const db: Firestore = resolved.databaseId
+  ? getFirestore(app, resolved.databaseId)
+  : getFirestore(app);
+export const auth: Auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
@@ -62,6 +89,7 @@ export function handleFirestoreError(
 }
 
 async function testConnection() {
+  if (!isFirebaseConfigured) return;
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {

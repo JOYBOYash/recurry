@@ -3,12 +3,14 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 interface ScrollRevealProps {
   children: ReactNode;
   delayMs?: number;
+  variant?: 'up' | 'scale' | 'left' | 'right';
   className?: string;
 }
 
 export function ScrollReveal({
   children,
   delayMs = 0,
+  variant = 'up',
   className = '',
 }: ScrollRevealProps) {
   const ref = useRef<HTMLDivElement | null>(null);
@@ -50,6 +52,7 @@ export function ScrollReveal({
     <div
       ref={ref}
       data-visible={visible ? 'true' : 'false'}
+      data-variant={variant}
       style={delayMs > 0 ? { transitionDelay: `${delayMs}ms` } : undefined}
       className={`scroll-reveal ${className}`}
     >

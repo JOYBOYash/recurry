@@ -77,14 +77,16 @@ function mapGeminiError(error: unknown): { status: number; message: string } {
   }
 
   const raw = error instanceof Error ? error.message : String(error);
+  console.error('[geminiService] Upstream AI error:', raw);
+
   if (
     raw.includes('PERMISSION_DENIED') ||
     raw.includes('403') ||
     raw.includes('API_KEY_INVALID')
   ) {
     return {
-      status: 403,
-      message: 'The server Gemini configuration was rejected.',
+      status: 503,
+      message: 'The server AI configuration was rejected. Contact the site administrator.',
     };
   }
   if (raw.includes('RESOURCE_EXHAUSTED') || raw.includes('429')) {
@@ -94,8 +96,8 @@ function mapGeminiError(error: unknown): { status: number; message: string } {
     };
   }
   return {
-    status: 500,
-    message: `AI request failed: ${raw}`,
+    status: 502,
+    message: 'AI request failed. Please try again shortly.',
   };
 }
 

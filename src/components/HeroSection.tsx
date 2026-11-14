@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type MouseEvent } from 'react';
 import { ArrowRight, ChevronDown, Layers } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { HighlightText } from './HighlightText';
@@ -16,6 +16,7 @@ export function HeroSection({
   const cloudsRef = useRef<HTMLDivElement | null>(null);
   const groundRef = useRef<HTMLDivElement | null>(null);
   const copyRef = useRef<HTMLDivElement | null>(null);
+  const scrollCueRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const prefersReducedMotion = window.matchMedia(
@@ -30,20 +31,34 @@ export function HeroSection({
       const heroEl = heroRef.current;
       if (!heroEl) return;
 
-      const maxScroll = heroEl.offsetHeight + 120;
+      const maxScroll = heroEl.offsetHeight + 160;
       const scrollY = Math.max(0, Math.min(window.scrollY, maxScroll));
 
-      // Far sky & clouds lag behind scroll speed for clear atmospheric depth
+      // Clouds drift downward smoothly as the user scrolls down without exposing a top edge
       if (cloudsRef.current) {
-        cloudsRef.current.style.transform = `translate3d(0, ${(scrollY * 0.44).toFixed(1)}px, 0) scale(1.06)`;
+        cloudsRef.current.style.transform = `translate3d(0, ${(scrollY * 0.28).toFixed(1)}px, 0) scale(1.04)`;
       }
-      // Foreground grassy rocky hill rises cleanly against the sky
+      // Foreground grassy ridge rises smoothly on scroll, clamped so its bottom edge never lifts into view
       if (groundRef.current) {
-        groundRef.current.style.transform = `translate3d(0, ${(-scrollY * 0.16).toFixed(1)}px, 0)`;
+        const bottomTuck = Math.max(
+          0,
+          -parseFloat(window.getComputedStyle(groundRef.current).bottom) || 180,
+        );
+        const maxLift = Math.max(0, bottomTuck - 14);
+        const lift = Math.min(scrollY * 0.24, maxLift);
+        groundRef.current.style.transform = `translate3d(0, ${(-lift).toFixed(1)}px, 0)`;
       }
-      // Hero headline & CTAs drift slightly slower than foreground hill
+      // Hero headline & CTAs settle slightly slower against the sky
       if (copyRef.current) {
+        const copyOpacity = Math.max(0.2, 1 - scrollY / 540);
         copyRef.current.style.transform = `translate3d(0, ${(scrollY * 0.14).toFixed(1)}px, 0)`;
+        copyRef.current.style.opacity = copyOpacity.toFixed(3);
+      }
+      // Scroll cue between sky and ground fades itself out smoothly as you scroll
+      if (scrollCueRef.current) {
+        const cueOpacity = Math.max(0, 1 - scrollY / 140);
+        scrollCueRef.current.style.opacity = cueOpacity.toFixed(3);
+        scrollCueRef.current.style.transform = `translate3d(0, ${(scrollY * 0.18).toFixed(1)}px, 0)`;
       }
     };
 
@@ -63,7 +78,7 @@ export function HeroSection({
     };
   }, []);
 
-  function handleScrollToSkills(e: React.MouseEvent<HTMLAnchorElement>) {
+  function handleScrollToSkills(e: MouseEvent<HTMLAnchorElement>) {
     e.preventDefault();
     const target = document.getElementById('skills');
     if (target) {
@@ -74,13 +89,13 @@ export function HeroSection({
   return (
     <section
       ref={heroRef}
-      className="relative flex min-h-[600px] w-full flex-col justify-between overflow-hidden bg-gradient-to-b from-[#1D4ED8] via-[#2563EB] via-65% to-[#60A5FA] sm:h-[calc(100vh-4rem)] sm:min-h-[660px] sm:max-h-[820px]"
+      className="relative flex min-h-[680px] w-full flex-col justify-between overflow-hidden bg-gradient-to-b from-[#1D4ED8] via-[#2563EB] via-60% to-[#60A5FA] sm:h-[100svh] sm:min-h-[720px] sm:max-h-[900px]"
     >
       {/* Far sky parallax clouds layer */}
       <div
         ref={cloudsRef}
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 -top-10 z-[1] h-[110%] will-change-transform"
+        className="pointer-events-none absolute inset-x-0 -top-40 z-[1] h-[140%] will-change-transform"
       >
         <img
           src="/assets/images/parallax-clouds.webp"
@@ -92,16 +107,16 @@ export function HeroSection({
           className="absolute inset-0"
           style={{
             background:
-              'radial-gradient(66% 56% at 50% 34%, rgba(29, 78, 216, 0.54) 0%, rgba(37, 99, 235, 0.22) 62%, transparent 100%)',
+              'radial-gradient(66% 56% at 50% 34%, rgba(29, 78, 216, 0.52) 0%, rgba(37, 99, 235, 0.2) 64%, transparent 100%)',
           }}
         />
       </div>
 
-      {/* Foreground grassy hill parallax layer anchored with buffer below so scrolling never exposes a seam */}
+      {/* Foreground grassy wildflower meadow peeking below scroll cue at rest and rising smoothly on scroll */}
       <div
         ref={groundRef}
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 -bottom-40 z-[3] h-[430px] will-change-transform sm:-bottom-44 sm:h-[520px] lg:-bottom-48 lg:h-[600px]"
+        className="pointer-events-none absolute inset-x-0 -bottom-[180px] z-[3] h-[480px] will-change-transform sm:-bottom-[200px] sm:h-[520px] lg:-bottom-[260px] lg:h-[560px]"
       >
         <img
           src="/assets/images/parallax-ground.webp"
@@ -110,16 +125,16 @@ export function HeroSection({
         />
       </div>
 
-      {/* Subtle anchored bottom edge transition into the #F7F8FA canvas */}
+      {/* Subtle bottom edge blend into #F7F8FA */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 bottom-0 z-[5] h-16 bg-gradient-to-t from-[#F7F8FA] via-[#F7F8FA]/65 to-transparent"
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-[5] h-14 bg-gradient-to-t from-[#F7F8FA] via-[#F7F8FA]/55 to-transparent sm:h-16"
       />
 
-      {/* Centered Hero Copy & CTAs */}
+      {/* Centered Hero Copy & CTAs in open sky (cleared below fixed glassmorphic navbar) */}
       <div
         ref={copyRef}
-        className="relative z-10 mx-auto w-full max-w-4xl px-4 pt-14 text-center will-change-transform sm:px-6 sm:pt-20 lg:px-8 lg:pt-24"
+        className="relative z-10 mx-auto w-full max-w-4xl px-4 pt-28 text-center will-change-transform sm:px-6 sm:pt-32 lg:px-8 lg:pt-36"
       >
         <div className="mx-auto max-w-3xl space-y-5">
           <h1 className="font-display text-4xl leading-[1.2] font-bold tracking-tight text-white text-balance sm:text-5xl lg:text-[3.6rem] lg:leading-[1.16]">
@@ -152,26 +167,24 @@ export function HeroSection({
         </div>
       </div>
 
-      {/* Unboxed editorial scroll-rail indicator anchored cleanly over the meadow */}
-      <div className="relative z-10 flex justify-center px-4 pb-10 pt-8 sm:pb-12">
+      {/* Scroll indicator resting cleanly between sky and meadow horizon, fading out on scroll */}
+      <div
+        ref={scrollCueRef}
+        className="relative z-10 flex justify-center px-4 pb-36 pt-6 will-change-transform sm:pb-48 lg:pb-56"
+      >
         <a
           href="#skills"
           onClick={handleScrollToSkills}
-          className="group inline-flex flex-col items-center gap-2 px-3 py-1.5 text-white drop-shadow-[0_2px_8px_rgba(15,23,42,0.7)] transition-opacity hover:opacity-85"
+          className="group inline-flex flex-col items-center gap-2 px-3 py-1.5 text-white drop-shadow-[0_2px_8px_rgba(15,23,42,0.55)] transition-opacity hover:opacity-85"
         >
           <span className="text-xs font-semibold tracking-wide">
             Scroll to know more
           </span>
-          <span
-            aria-hidden="true"
-            className="flex flex-col items-center"
-          >
-            <span className="relative h-7 w-[2px] overflow-hidden rounded-full bg-white/40">
+          <span aria-hidden="true" className="flex flex-col items-center">
+            <span className="relative h-7 w-[2px] overflow-hidden rounded-full bg-white/45">
               <span className="animate-scroll-beam absolute inset-x-0 top-0 h-3.5 rounded-full bg-white" />
             </span>
-            <ChevronDown
-              className="-mt-1.5 h-4 w-4 text-white transition-transform duration-200 group-hover:translate-y-0.5"
-            />
+            <ChevronDown className="-mt-1.5 h-4 w-4 text-white transition-transform duration-200 group-hover:translate-y-0.5" />
           </span>
         </a>
       </div>

@@ -16,6 +16,7 @@ import type {
   DailyQuotaStatus,
   LearningOverviewStats,
 } from '../utils/curriculumLogic';
+import { BrandLogo } from './BrandLogo';
 import { DailyGoalRing } from './DailyGoalRing';
 
 interface AppNavigationProps {
@@ -67,9 +68,10 @@ export function AppNavigation({
           <div className="flex items-center justify-between">
             <Link
               to="/"
-              className="font-display text-2xl font-bold tracking-tight text-slate-950 transition-opacity hover:opacity-80"
+              className="inline-flex items-center transition-opacity hover:opacity-85"
+              aria-label="recurry home"
             >
-              recurry
+              <BrandLogo size="sm" />
             </Link>
             <span className="max-w-[100px] truncate rounded-lg bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-700">
               @{username}
@@ -195,9 +197,10 @@ export function AppNavigation({
       <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur-sm lg:hidden">
         <Link
           to="/"
-          className="font-display text-xl font-bold tracking-tight text-slate-950 whitespace-nowrap"
+          className="inline-flex items-center whitespace-nowrap transition-opacity hover:opacity-85"
+          aria-label="recurry home"
         >
-          recurry
+          <BrandLogo size="sm" />
         </Link>
         <div className="flex items-center gap-3">
           <Link

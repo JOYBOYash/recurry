@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { DailyGoalRing } from '../components/DailyGoalRing';
+import { BrandLogo } from '../components/BrandLogo';
 import { LanguageIcon } from '../components/LanguageIcon';
 import { useAppAuth } from '../context/AppAuthContext';
 import {
@@ -233,9 +234,7 @@ export function OnboardingView() {
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             </button>
           ) : (
-            <span className="font-display text-lg font-bold text-slate-950">
-              recurry
-            </span>
+            <BrandLogo size="sm" />
           )}
 
           <div className="flex-1">

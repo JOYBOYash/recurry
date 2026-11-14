@@ -1,8 +1,11 @@
 import 'dotenv/config';
-import express, { type Request } from 'express';
-import fs from 'node:fs';
+import express, { type NextFunction, type Request, type Response } from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  readFallbackFirebaseJson,
+  resolveServerConfig,
+} from './server/config.ts';
 import {
   askSyntaxTutor,
   evaluatePracticeCode,
@@ -12,50 +15,59 @@ import {
   generateSyntaxReferenceEntry,
 } from './server/geminiService.ts';
 import {
+  ALLOWED_FOCUSES,
+  ALLOWED_LANGUAGES,
+  ALLOWED_PACES,
+  ALLOWED_SKILL_LEVELS,
+  apiCorsMiddleware,
+  clampString,
+  sanitizeDateKey,
+  sanitizeReferenceCategory,
+  sanitizeStringArray,
+  sanitizeTutorHistory,
+  securityHeadersMiddleware,
+  SlidingWindowRateLimiter,
+} from './server/security.ts';
+import {
   consumeUserDailyQuota,
   getUserDailyQuota,
 } from './server/store.ts';
 import type {
   LanguageId,
   LearningFocus,
+  PaceDepth,
   PersonalizationRequest,
   ReferenceGenerateRequest,
   SkillLevel,
-  TutorMessage,
 } from './src/types/curriculum.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const ALLOWED_LANGUAGES = new Set<LanguageId>([
-  'sql',
-  'java',
-  'cpp',
-  'python',
-  'javascript',
-  'ruby',
-]);
+const config = resolveServerConfig(
+  process.env,
+  readFallbackFirebaseJson(__dirname),
+);
 
-const ALLOWED_SKILL_LEVELS = new Set<SkillLevel>([
-  'noob',
-  'intern',
-  'expert',
-  'master',
-  'legend',
-]);
+const apiIpRateLimiter = new SlidingWindowRateLimiter(60, 60_000);
+const aiUserRateLimiter = new SlidingWindowRateLimiter(20, 5 * 60_000);
+const generateUserRateLimiter = new SlidingWindowRateLimiter(5, 10 * 60_000);
 
-const ALLOWED_FOCUSES = new Set<LearningFocus>(['syntax', 'problem_solving']);
+function getClientIp(req: Request): string {
+  return req.ip || req.socket.remoteAddress || 'unknown';
+}
 
-let firebaseApiKey = '';
-try {
-  const cfgRaw = fs.readFileSync(
-    path.resolve(__dirname, 'firebase-applet-config.json'),
-    'utf8',
-  );
-  const cfg = JSON.parse(cfgRaw) as { apiKey?: string };
-  firebaseApiKey = cfg.apiKey?.trim() ?? '';
-} catch {
-  firebaseApiKey = '';
+function respondWithSafeError(
+  res: Response,
+  error: unknown,
+  fallbackMessage: string,
+): void {
+  if (error instanceof GeminiConfigError) {
+    res.status(error.status).json({ error: error.message });
+    return;
+  }
+  console.error('[server] Unexpected API error:', error);
+  res.status(500).json({ error: fallbackMessage });
 }
 
 async function verifyFirebaseUser(req: Request): Promise<{ uid: string }> {
@@ -64,68 +76,133 @@ async function verifyFirebaseUser(req: Request): Promise<{ uid: string }> {
     throw new GeminiConfigError('Sign in required to access this endpoint.', 401);
   }
   const idToken = authHeader.slice('Bearer '.length).trim();
-  if (!idToken) {
-    throw new GeminiConfigError('Missing authentication token.', 401);
+  if (!idToken || idToken.length > 4096) {
+    throw new GeminiConfigError('Invalid authentication token.', 401);
   }
-  if (!firebaseApiKey) {
-    throw new GeminiConfigError('Firebase configuration is unavailable on the server.', 500);
+  if (!config.firebaseApiKey) {
+    throw new GeminiConfigError(
+      'Firebase authentication is not configured on the server.',
+      503,
+    );
   }
 
-  const response = await fetch(
-    `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(firebaseApiKey)}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ idToken }),
-    },
-  );
+  let response: globalThis.Response;
+  try {
+    response = await fetch(
+      `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(config.firebaseApiKey)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken }),
+        signal: AbortSignal.timeout(8000),
+      },
+    );
+  } catch {
+    throw new GeminiConfigError(
+      'Authentication service is temporarily unreachable.',
+      503,
+    );
+  }
 
   if (!response.ok) {
-    throw new GeminiConfigError('Invalid or expired session. Please sign in again.', 401);
+    throw new GeminiConfigError(
+      'Invalid or expired session. Please sign in again.',
+      401,
+    );
   }
 
   const data = (await response.json()) as {
-    users?: Array<{ localId?: string }>;
+    users?: Array<{ localId?: string; disabled?: boolean }>;
   };
-  const uid = data.users?.[0]?.localId;
-  if (!uid) {
+  const verifiedUser = data.users?.[0];
+  if (!verifiedUser?.localId) {
     throw new GeminiConfigError('Unable to verify Firebase user identity.', 401);
   }
-  return { uid };
+  if (verifiedUser.disabled) {
+    throw new GeminiConfigError('This user account has been disabled.', 403);
+  }
+  return { uid: verifiedUser.localId };
+}
+
+function enforceRateLimit(
+  limiter: SlidingWindowRateLimiter,
+  key: string,
+  res: Response,
+): boolean {
+  const result = limiter.check(key);
+  if (!result.allowed) {
+    res.setHeader('Retry-After', String(result.retryAfterSeconds));
+    res.status(429).json({
+      error: `Too many requests. Please retry in ${result.retryAfterSeconds}s.`,
+    });
+    return false;
+  }
+  return true;
 }
 
 async function startServer() {
   const app = express();
-  app.use(express.json({ limit: '1mb' }));
+  app.disable('x-powered-by');
+  app.set('trust proxy', config.trustProxy);
+
+  app.use(
+    securityHeadersMiddleware({
+      isProduction: config.isProduction,
+      frameAncestors: config.frameAncestors,
+    }),
+  );
+
+  app.use('/api', apiCorsMiddleware(config.allowedOrigins));
+  app.use('/api', (_req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store');
+    next();
+  });
+
+  app.use('/api', (req, res, next) => {
+    if (req.path === '/health') {
+      next();
+      return;
+    }
+    const ipKey = `ip:${getClientIp(req)}`;
+    if (!enforceRateLimit(apiIpRateLimiter, ipKey, res)) return;
+    next();
+  });
+
+  app.use(express.json({ limit: '128kb' }));
+  app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
+    if (err instanceof SyntaxError && 'body' in err) {
+      res.status(400).json({ error: 'Invalid JSON request body.' });
+      return;
+    }
+    next(err);
+  });
 
   app.get('/api/health', (_req, res) => {
-    const key = process.env.GEMINI_API_KEY?.trim();
     res.json({
       ok: true,
-      geminiConfigured: Boolean(key && key !== 'MY_GEMINI_API_KEY'),
-      firebaseConfigured: Boolean(firebaseApiKey),
+      geminiConfigured: Boolean(config.geminiApiKey),
+      firebaseConfigured: Boolean(config.firebaseApiKey),
     });
   });
 
   app.get('/api/quota', async (req, res) => {
     try {
       const { uid } = await verifyFirebaseUser(req);
-      const clientDateKey =
-        typeof req.query.dateKey === 'string' ? req.query.dateKey : undefined;
+      const clientDateKey = sanitizeDateKey(req.query.dateKey);
       const quota = await getUserDailyQuota(uid, clientDateKey);
       res.json(quota);
     } catch (error) {
-      const status = error instanceof GeminiConfigError ? error.status : 500;
-      const message =
-        error instanceof Error ? error.message : 'Unable to check daily quota.';
-      res.status(status).json({ error: message });
+      respondWithSafeError(res, error, 'Unable to check daily quota.');
     }
   });
 
   app.post('/api/curriculum/generate', async (req, res) => {
     try {
       const { uid } = await verifyFirebaseUser(req);
+      if (!enforceRateLimit(generateUserRateLimiter, `gen:${uid}`, res)) return;
+
       const body = req.body as Partial<PersonalizationRequest>;
+      const clientDateKey = sanitizeDateKey(body.clientDateKey);
 
       if (!body.language || !ALLOWED_LANGUAGES.has(body.language)) {
         res.status(400).json({
@@ -134,7 +211,7 @@ async function startServer() {
         return;
       }
 
-      const quotaStatus = await getUserDailyQuota(uid, body.clientDateKey);
+      const quotaStatus = await getUserDailyQuota(uid, clientDateKey);
       if (!quotaStatus.allowed) {
         res.status(429).json({
           error: 'Daily limit reached: 1 personalized curriculum per day. Resets tomorrow.',
@@ -152,17 +229,21 @@ async function startServer() {
         body.learningFocus && ALLOWED_FOCUSES.has(body.learningFocus)
           ? body.learningFocus
           : 'syntax';
+      const paceDepth: PaceDepth =
+        body.paceDepth && ALLOWED_PACES.has(body.paceDepth)
+          ? body.paceDepth
+          : 'comprehensive';
 
       const track = await generatePersonalizedCurriculum({
         language: body.language,
         skillLevel,
         learningFocus,
-        paceDepth: body.paceDepth ?? 'comprehensive',
-        priorBackground: String(body.priorBackground ?? ''),
-        focusNotes: String(body.focusNotes ?? ''),
+        paceDepth,
+        priorBackground: clampString(body.priorBackground, 320),
+        focusNotes: clampString(body.focusNotes, 400),
       });
 
-      const updatedQuota = await consumeUserDailyQuota(uid, body.clientDateKey);
+      const updatedQuota = await consumeUserDailyQuota(uid, clientDateKey);
       res.json({
         track: { ...track, uid },
         quota: {
@@ -172,18 +253,15 @@ async function startServer() {
         },
       });
     } catch (error) {
-      const status = error instanceof GeminiConfigError ? error.status : 500;
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Unable to generate curriculum.';
-      res.status(status).json({ error: message });
+      respondWithSafeError(res, error, 'Unable to generate curriculum.');
     }
   });
 
   app.post('/api/lesson/expand', async (req, res) => {
     try {
-      await verifyFirebaseUser(req);
+      const { uid } = await verifyFirebaseUser(req);
+      if (!enforceRateLimit(aiUserRateLimiter, `ai:${uid}`, res)) return;
+
       const body = req.body as {
         language?: LanguageId;
         moduleTitle?: string;
@@ -191,33 +269,33 @@ async function startServer() {
         skillLevel?: string;
         priorBackground?: string;
       };
+      const moduleTitle = clampString(body.moduleTitle, 160);
       if (
         !body.language ||
         !ALLOWED_LANGUAGES.has(body.language) ||
-        !body.moduleTitle
+        !moduleTitle
       ) {
         res.status(400).json({ error: 'language and moduleTitle are required.' });
         return;
       }
       const deepDive = await generateLessonDeepDive({
         language: body.language,
-        moduleTitle: body.moduleTitle,
-        syntaxGrammar: body.syntaxGrammar ?? '',
-        skillLevel: body.skillLevel ?? 'intern',
-        priorBackground: body.priorBackground ?? '',
+        moduleTitle,
+        syntaxGrammar: clampString(body.syntaxGrammar, 800),
+        skillLevel: clampString(body.skillLevel, 40) || 'intern',
+        priorBackground: clampString(body.priorBackground, 320),
       });
       res.json({ deepDive });
     } catch (error) {
-      const status = error instanceof GeminiConfigError ? error.status : 500;
-      const message =
-        error instanceof Error ? error.message : 'Unable to expand lesson.';
-      res.status(status).json({ error: message });
+      respondWithSafeError(res, error, 'Unable to expand lesson.');
     }
   });
 
   app.post('/api/code/evaluate', async (req, res) => {
     try {
-      await verifyFirebaseUser(req);
+      const { uid } = await verifyFirebaseUser(req);
+      if (!enforceRateLimit(aiUserRateLimiter, `ai:${uid}`, res)) return;
+
       const body = req.body as {
         language?: LanguageId;
         challengeTitle?: string;
@@ -225,10 +303,11 @@ async function startServer() {
         expectedConcepts?: string[];
         userCode?: string;
       };
+      const userCode = clampString(body.userCode, 12_000);
       if (
         !body.language ||
         !ALLOWED_LANGUAGES.has(body.language) ||
-        !body.userCode?.trim()
+        !userCode
       ) {
         res
           .status(400)
@@ -237,88 +316,87 @@ async function startServer() {
       }
       const evaluation = await evaluatePracticeCode({
         language: body.language,
-        challengeTitle: body.challengeTitle ?? 'Syntax Exercise',
-        challengePrompt: body.challengePrompt ?? '',
-        expectedConcepts: Array.isArray(body.expectedConcepts)
-          ? body.expectedConcepts
-          : [],
-        userCode: body.userCode,
+        challengeTitle: clampString(body.challengeTitle, 160) || 'Syntax Exercise',
+        challengePrompt: clampString(body.challengePrompt, 2000),
+        expectedConcepts: sanitizeStringArray(body.expectedConcepts, 12, 80),
+        userCode,
       });
       res.json({ evaluation });
     } catch (error) {
-      const status = error instanceof GeminiConfigError ? error.status : 500;
-      const message =
-        error instanceof Error ? error.message : 'Unable to evaluate code.';
-      res.status(status).json({ error: message });
+      respondWithSafeError(res, error, 'Unable to evaluate code.');
     }
   });
 
   app.post('/api/tutor/ask', async (req, res) => {
     try {
-      await verifyFirebaseUser(req);
+      const { uid } = await verifyFirebaseUser(req);
+      if (!enforceRateLimit(aiUserRateLimiter, `ai:${uid}`, res)) return;
+
       const body = req.body as {
         language?: LanguageId;
         moduleTitle?: string;
         currentCode?: string;
         question?: string;
-        history?: TutorMessage[];
+        history?: unknown;
       };
+      const question = clampString(body.question, 1000);
       if (
         !body.language ||
         !ALLOWED_LANGUAGES.has(body.language) ||
-        !body.question?.trim()
+        !question
       ) {
         res.status(400).json({ error: 'language and question are required.' });
         return;
       }
       const reply = await askSyntaxTutor({
         language: body.language,
-        moduleTitle: body.moduleTitle ?? '',
-        currentCode: body.currentCode ?? '',
-        question: body.question.trim(),
-        history: Array.isArray(body.history) ? body.history : [],
+        moduleTitle: clampString(body.moduleTitle, 160),
+        currentCode: clampString(body.currentCode, 12_000),
+        question,
+        history: sanitizeTutorHistory(body.history),
       });
       res.json(reply);
     } catch (error) {
-      const status = error instanceof GeminiConfigError ? error.status : 500;
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Unable to reach syntax tutor.';
-      res.status(status).json({ error: message });
+      respondWithSafeError(res, error, 'Unable to reach syntax tutor.');
     }
   });
 
   app.post('/api/reference/generate', async (req, res) => {
     try {
       const { uid } = await verifyFirebaseUser(req);
+      if (!enforceRateLimit(aiUserRateLimiter, `ai:${uid}`, res)) return;
+
       const body = req.body as Partial<ReferenceGenerateRequest>;
-      const languages = (body.languages ?? []).filter((l) =>
-        ALLOWED_LANGUAGES.has(l),
+      const topic = clampString(body.topic, 140);
+      const languages = Array.from(
+        new Set(
+          (Array.isArray(body.languages) ? body.languages : []).filter((l) =>
+            ALLOWED_LANGUAGES.has(l),
+          ),
+        ),
       );
-      if (!body.topic?.trim() || languages.length === 0) {
+      if (topic.length < 2 || languages.length === 0) {
         res.status(400).json({
-          error: 'A syntax topic and at least one language are required.',
+          error: 'A syntax topic (2-140 chars) and at least one language are required.',
         });
         return;
       }
       const entry = await generateSyntaxReferenceEntry({
-        topic: body.topic.trim(),
-        category: body.category ?? 'Types & Variables',
+        topic,
+        category: sanitizeReferenceCategory(body.category),
         languages,
       });
       res.json({ entry: { ...entry, uid } });
     } catch (error) {
-      const status = error instanceof GeminiConfigError ? error.status : 500;
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Unable to generate syntax reference.';
-      res.status(status).json({ error: message });
+      respondWithSafeError(res, error, 'Unable to generate syntax reference.');
     }
   });
 
-  if (process.env.NODE_ENV !== 'production') {
+  app.use('/api', (_req, res) => {
+    res.status(404).json({ error: 'API endpoint not found.' });
+  });
+
+  if (!config.isProduction) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -327,15 +405,34 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distDir = path.resolve(__dirname, 'dist');
-    app.use(express.static(distDir));
+    app.use(
+      express.static(distDir, {
+        maxAge: '1y',
+        immutable: true,
+        setHeaders(res, filePath) {
+          if (filePath.endsWith('.html')) {
+            res.setHeader('Cache-Control', 'no-cache');
+          }
+        },
+      }),
+    );
     app.get('*', (_req, res) => {
+      res.setHeader('Cache-Control', 'no-cache');
       res.sendFile(path.join(distDir, 'index.html'));
     });
   }
 
-  const port = Number(process.env.PORT) || 3000;
-  app.listen(port, '0.0.0.0', () => {
-    console.log(`recurry server listening on http://localhost:${port}`);
+  app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    console.error('[server] Unhandled error:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Internal server error.' });
+    }
+  });
+
+  app.listen(config.port, config.host, () => {
+    console.log(
+      `recurry server listening on http://${config.host}:${config.port} (${config.isProduction ? 'production' : 'development'})`,
+    );
   });
 }
 

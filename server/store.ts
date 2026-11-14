@@ -1,8 +1,13 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-const DATA_DIR = path.resolve(process.cwd(), '.data');
-const QUOTA_PATH = path.join(DATA_DIR, 'recurry-quotas.json');
+function getQuotaPath(): string {
+  const customPath = process.env.QUOTA_STORE_PATH?.trim();
+  if (customPath) {
+    return path.resolve(customPath);
+  }
+  return path.resolve(process.cwd(), '.data', 'recurry-quotas.json');
+}
 
 interface QuotaRecord {
   dateKey: string;
@@ -13,13 +18,9 @@ type QuotaMap = Record<string, QuotaRecord>;
 
 let writeQueue: Promise<void> = Promise.resolve();
 
-async function ensureDir(): Promise<void> {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-}
-
 async function readQuotas(): Promise<QuotaMap> {
   try {
-    const raw = await fs.readFile(QUOTA_PATH, 'utf8');
+    const raw = await fs.readFile(getQuotaPath(), 'utf8');
     const parsed = JSON.parse(raw) as unknown;
     return parsed && typeof parsed === 'object' ? (parsed as QuotaMap) : {};
   } catch {
@@ -28,10 +29,11 @@ async function readQuotas(): Promise<QuotaMap> {
 }
 
 async function writeQuotas(map: QuotaMap): Promise<void> {
-  await ensureDir();
-  const tempPath = `${QUOTA_PATH}.tmp`;
+  const quotaPath = getQuotaPath();
+  await fs.mkdir(path.dirname(quotaPath), { recursive: true });
+  const tempPath = `${quotaPath}.tmp`;
   await fs.writeFile(tempPath, JSON.stringify(map, null, 2), 'utf8');
-  await fs.rename(tempPath, QUOTA_PATH);
+  await fs.rename(tempPath, quotaPath);
 }
 
 function withQuotaLock<T>(mutator: (map: QuotaMap) => Promise<T> | T): Promise<T> {

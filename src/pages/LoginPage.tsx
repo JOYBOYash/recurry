@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { AlertCircle, ArrowLeft, Loader2, Lock, Mail } from 'lucide-react';
 import { FcGoogle } from 'react-icons/fc';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { BrandLogo } from '../components/BrandLogo';
 import { useAppAuth } from '../context/AppAuthContext';
 
 export function LoginPage() {
@@ -72,10 +73,8 @@ export function LoginPage() {
       </div>
 
       <main className="mx-auto my-8 w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 sm:p-8">
-        <div className="space-y-1.5">
-          <span className="font-display text-2xl font-bold text-slate-950">
-            recurry
-          </span>
+        <div className="space-y-2">
+          <BrandLogo size="md" />
           <h1 className="font-display text-xl font-bold text-slate-900">
             {mode === 'signin' ? 'Sign in to your workspace' : 'Create your account'}
           </h1>

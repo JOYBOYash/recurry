@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowUpRight, Check, Copy, Terminal } from 'lucide-react';
 import { FaGithub } from 'react-icons/fa6';
 import { Link } from 'react-router-dom';
 import { REPO_CLONE_COMMAND, REPO_URL } from '../data/landingContent';
+import { BrandLogo } from './BrandLogo';
+import { ScrollReveal } from './ScrollReveal';
 
 interface FooterWithGithubProps {
   primaryDestination: string;
@@ -10,6 +12,44 @@ interface FooterWithGithubProps {
 
 export function FooterWithGithub({ primaryDestination }: FooterWithGithubProps) {
   const [copiedClone, setCopiedClone] = useState(false);
+  const footerRef = useRef<HTMLElement | null>(null);
+  const cloudsRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const prefersReducedMotion = window.matchMedia(
+      '(prefers-reduced-motion: reduce)',
+    ).matches;
+    if (prefersReducedMotion) return;
+
+    let rafId = 0;
+
+    const updateFooterParallax = () => {
+      rafId = 0;
+      const footerEl = footerRef.current;
+      const cloudsEl = cloudsRef.current;
+      if (!footerEl || !cloudsEl) return;
+
+      const rect = footerEl.getBoundingClientRect();
+      const viewportH = window.innerHeight || 800;
+      const progress = Math.max(0, Math.min(1, 1 - rect.top / viewportH));
+      cloudsEl.style.transform = `translate3d(0, ${((1 - progress) * 32).toFixed(1)}px, 0) scale(1.04)`;
+    };
+
+    const handleScroll = () => {
+      if (!rafId) {
+        rafId = window.requestAnimationFrame(updateFooterParallax);
+      }
+    };
+
+    updateFooterParallax();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('resize', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', handleScroll);
+      if (rafId) window.cancelAnimationFrame(rafId);
+    };
+  }, []);
 
   async function handleCopyClone() {
     try {
@@ -23,13 +63,15 @@ export function FooterWithGithub({ primaryDestination }: FooterWithGithubProps) 
 
   return (
     <footer
+      ref={footerRef}
       id="github"
-      className="relative flex min-h-[85vh] flex-col justify-between overflow-hidden border-t border-slate-200 bg-white text-[#0F172A] scroll-mt-16 lg:min-h-[92vh]"
+      className="relative flex min-h-[85vh] flex-col justify-between overflow-hidden border-t border-slate-200 bg-white text-[#0F172A] scroll-mt-24 lg:min-h-[92vh]"
     >
-      {/* Full inverted clouds expanse fading gently across the tall footer so footer floats above the clouds */}
+      {/* Full inverted clouds expanse floating upward gently on scroll */}
       <div
+        ref={cloudsRef}
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 bottom-0 h-[620px] overflow-hidden sm:h-[740px] lg:h-[820px]"
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-[620px] overflow-hidden will-change-transform sm:h-[740px] lg:h-[820px]"
       >
         <img
           src="/assets/images/parallax-clouds.webp"
@@ -41,66 +83,69 @@ export function FooterWithGithub({ primaryDestination }: FooterWithGithubProps) 
 
       {/* Upper white footer area: Open-source codebase + Navigation */}
       <div className="relative z-10 mx-auto w-full max-w-6xl space-y-10 px-4 pt-12 sm:px-6 lg:px-8 lg:pt-16">
-        <div
-          id="credits"
-          className="flex flex-col justify-between gap-6 lg:flex-row lg:items-center"
-        >
-          <div className="space-y-1.5">
-            <h2 className="font-display text-2xl font-bold text-slate-950 sm:text-3xl">
-              Explore the recurry codebase
-            </h2>
-            <p className="max-w-md text-sm text-slate-600">
-              Open-source curriculum engine, syntax lexer, daily goal tracking, and Firestore rules.
-            </p>
-          </div>
-
-          <div className="flex min-w-0 flex-wrap items-center gap-2.5 lg:shrink-0 lg:flex-nowrap lg:justify-end">
-            <div className="flex max-w-full min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-[#F7F8FA]/95 px-3 py-2 font-mono text-xs text-slate-700 backdrop-blur-xs">
-              <Terminal className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden="true" />
-              <span className="max-w-[200px] truncate sm:max-w-none">
-                {REPO_CLONE_COMMAND}
-              </span>
-              <button
-                type="button"
-                onClick={() => void handleCopyClone()}
-                aria-label="Copy git clone command"
-                className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-sans text-xs font-semibold text-slate-800 transition-colors hover:border-slate-300 hover:text-slate-950"
-              >
-                {copiedClone ? (
-                  <>
-                    <Check className="h-3 w-3 text-emerald-600" aria-hidden="true" />
-                    <span>Copied</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-3 w-3" aria-hidden="true" />
-                    <span>Copy</span>
-                  </>
-                )}
-              </button>
+        <ScrollReveal>
+          <div
+            id="credits"
+            className="flex flex-col justify-between gap-6 lg:flex-row lg:items-center"
+          >
+            <div className="space-y-1.5">
+              <h2 className="font-display text-2xl font-bold text-slate-950 sm:text-3xl">
+                Explore the recurry codebase
+              </h2>
+              <p className="max-w-md text-sm text-slate-600">
+                Open-source curriculum engine, syntax lexer, daily goal tracking, and Firestore rules.
+              </p>
             </div>
 
-            <a
-              href={REPO_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="btn-juice inline-flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-900 hover:border-slate-400 hover:text-slate-950 sm:text-sm"
-            >
-              <FaGithub className="h-4 w-4 text-slate-950" aria-hidden="true" />
-              <span>Open on GitHub</span>
-              <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
-            </a>
+            <div className="flex min-w-0 flex-wrap items-center gap-2.5 lg:shrink-0 lg:flex-nowrap lg:justify-end">
+              <div className="flex max-w-full min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-[#F7F8FA]/95 px-3 py-2 font-mono text-xs text-slate-700 backdrop-blur-xs">
+                <Terminal className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden="true" />
+                <span className="max-w-[175px] truncate sm:max-w-none">
+                  {REPO_CLONE_COMMAND}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void handleCopyClone()}
+                  aria-label="Copy git clone command"
+                  className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-sans text-xs font-semibold text-slate-800 transition-colors hover:border-slate-300 hover:text-slate-950"
+                >
+                  {copiedClone ? (
+                    <>
+                      <Check className="h-3 w-3 text-emerald-600" aria-hidden="true" />
+                      <span>Copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-3 w-3" aria-hidden="true" />
+                      <span>Copy</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <a
+                href={REPO_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="btn-juice inline-flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-900 hover:border-slate-400 hover:text-slate-950 sm:text-sm"
+              >
+                <FaGithub className="h-4 w-4 text-slate-950" aria-hidden="true" />
+                <span>Open on GitHub</span>
+                <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </a>
+            </div>
           </div>
-        </div>
+        </ScrollReveal>
 
         {/* Structured Footer Navigation */}
         <div className="grid gap-8 border-t border-slate-200/80 pt-10 sm:grid-cols-2 lg:grid-cols-12">
           <div className="space-y-2.5 lg:col-span-5">
             <Link
               to="/"
-              className="font-display text-2xl font-bold tracking-tight text-slate-950"
+              className="inline-flex items-center transition-opacity hover:opacity-85"
+              aria-label="recurry home"
             >
-              recurry
+              <BrandLogo size="md" />
             </Link>
             <p className="max-w-sm text-sm leading-relaxed text-slate-600">
               Personalized syntax and problem-solving curriculums across SQL, Java, C++, Python, JavaScript, and Ruby.
