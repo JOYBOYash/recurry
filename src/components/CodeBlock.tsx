@@ -15,10 +15,10 @@ const TOKEN_COLORS: Record<SyntaxTokenType, string> = {
   type: 'text-amber-300',
   string: 'text-emerald-300',
   number: 'text-orange-300',
-  comment: 'text-slate-500 italic',
-  operator: 'text-slate-300',
+  comment: 'text-neutral-500 italic',
+  operator: 'text-neutral-300',
   function: 'text-indigo-300',
-  plain: 'text-slate-100',
+  plain: 'text-neutral-100',
 };
 
 const LANGUAGE_SHORT: Record<LanguageId, string> = {
@@ -50,10 +50,10 @@ export function CodeBlock({
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-800 bg-[#0D1117]">
-      <div className="flex items-center justify-between border-b border-slate-800/90 bg-[#141922] px-3.5 py-2">
-        <div className="flex items-center gap-2 text-xs text-slate-400">
-          <span className="font-mono font-medium text-slate-300">
+    <div className="overflow-hidden rounded-lg border border-neutral-800 bg-[#141414]">
+      <div className="flex items-center justify-between border-b border-neutral-800 bg-[#1C1C1C] px-3.5 py-2">
+        <div className="flex items-center gap-2 text-xs text-neutral-400">
+          <span className="font-mono font-medium text-neutral-200">
             {LANGUAGE_SHORT[language]}
           </span>
           {title && (
@@ -67,7 +67,7 @@ export function CodeBlock({
           type="button"
           onClick={handleCopy}
           aria-label={`Copy ${title ?? LANGUAGE_SHORT[language]} code`}
-          className="inline-flex min-h-8 items-center gap-1.5 rounded px-2 py-1 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-800 hover:text-white focus-visible:outline-2 focus-visible:outline-blue-500 whitespace-nowrap shrink-0"
+          className="inline-flex min-h-8 items-center gap-1.5 rounded px-2 py-1 text-xs font-medium text-neutral-300 transition-colors hover:bg-[#262626] hover:text-white focus-visible:outline-2 focus-visible:outline-blue-500 whitespace-nowrap shrink-0"
         >
           {copied ? (
             <>
@@ -91,7 +91,7 @@ export function CodeBlock({
                 {!compact && (
                   <span
                     aria-hidden="true"
-                    className="mr-4 w-6 select-none text-right text-xs leading-6 text-slate-600"
+                    className="mr-4 w-6 select-none text-right text-xs leading-6 text-neutral-600"
                   >
                     {lineIdx + 1}
                   </span>

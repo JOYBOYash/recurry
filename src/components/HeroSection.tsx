@@ -89,13 +89,13 @@ export function HeroSection({
   return (
     <section
       ref={heroRef}
-      className="relative flex min-h-[680px] w-full flex-col justify-between overflow-hidden bg-gradient-to-b from-[#1D4ED8] via-[#2563EB] via-60% to-[#60A5FA] sm:h-[100svh] sm:min-h-[720px] sm:max-h-[900px]"
+      className="relative flex h-[100svh] min-h-[640px] w-full flex-col overflow-hidden bg-gradient-to-b from-[#1D4ED8] via-[#2563EB] via-60% to-[#60A5FA]"
     >
       {/* Far sky parallax clouds layer */}
       <div
         ref={cloudsRef}
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 -top-40 z-[1] h-[140%] will-change-transform"
+        className="pointer-events-none absolute inset-x-0 -top-40 z-[1] h-[140%] w-full will-change-transform"
       >
         <img
           src="/assets/images/parallax-clouds.webp"
@@ -107,16 +107,17 @@ export function HeroSection({
           className="absolute inset-0"
           style={{
             background:
-              'radial-gradient(66% 56% at 50% 34%, rgba(29, 78, 216, 0.52) 0%, rgba(37, 99, 235, 0.2) 64%, transparent 100%)',
+              'radial-gradient(66% 56% at 50% 42%, rgba(29, 78, 216, 0.52) 0%, rgba(37, 99, 235, 0.2) 64%, transparent 100%)',
           }}
         />
       </div>
 
-      {/* Foreground grassy wildflower meadow peeking below scroll cue at rest and rising smoothly on scroll */}
+      {/* Foreground grassy wildflower meadow anchored lower at rest and rising smoothly on scroll */}
       <div
         ref={groundRef}
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 -bottom-[120px] z-[3] aspect-[16/9] min-h-[360px] w-full will-change-transform sm:-bottom-[180px] lg:-bottom-[260px]"
+        style={{ bottom: 'clamp(-680px, calc(105px - 25.9vw), -118px)' }}
+        className="pointer-events-none absolute inset-x-0 z-[3] aspect-[16/9] min-h-[360px] w-full will-change-transform"
       >
         <img
           src="/assets/images/parallax-ground.webp"
@@ -128,13 +129,13 @@ export function HeroSection({
       {/* Crisp minimal bottom edge seam into #F7F8FA without smudging foreground flowers */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 bottom-0 z-[5] h-5 bg-gradient-to-t from-[#F7F8FA] to-transparent sm:h-6"
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-[5] h-5 w-full bg-gradient-to-t from-[#F7F8FA] to-transparent sm:h-6"
       />
 
       {/* Centered Hero Copy & CTAs in open sky (cleared below fixed glassmorphic navbar) */}
       <div
         ref={copyRef}
-        className="relative z-10 mx-auto w-full max-w-4xl px-4 pt-28 text-center will-change-transform sm:px-6 sm:pt-32 lg:px-8 lg:pt-36"
+        className="relative z-10 mx-auto flex w-full max-w-4xl flex-1 flex-col items-center justify-center px-4 pt-16 pb-4 text-center will-change-transform sm:px-6 lg:px-8"
       >
         <div className="mx-auto max-w-3xl space-y-5">
           <h1 className="font-display text-4xl leading-[1.2] font-bold tracking-tight text-white text-balance sm:text-5xl lg:text-[3.6rem] lg:leading-[1.16]">
@@ -170,7 +171,7 @@ export function HeroSection({
       {/* Scroll indicator resting cleanly between sky and meadow horizon, fading out on scroll */}
       <div
         ref={scrollCueRef}
-        className="relative z-10 flex justify-center px-4 pb-36 pt-6 will-change-transform sm:pb-44 lg:pb-52"
+        className="relative z-10 flex shrink-0 justify-center px-4 pt-2 pb-20 will-change-transform sm:pb-28"
       >
         <a
           href="#skills"

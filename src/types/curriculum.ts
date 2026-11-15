@@ -53,9 +53,37 @@ export interface DeepDiveExpansion {
   generatedAt: string;
 }
 
+export type RecallExerciseType =
+  | 'multiple_choice'
+  | 'predict_output'
+  | 'fill_blank'
+  | 'bug_fix';
+
+export type RecallDifficulty = 'foundation' | 'applied' | 'mastery';
+
+export interface RecallExercise {
+  id: string;
+  type: RecallExerciseType;
+  difficulty: RecallDifficulty;
+  prompt: string;
+  codeSnippet?: string;
+  options?: string[];
+  answer: string;
+  explanation: string;
+  conceptTag: string;
+}
+
+export interface ModuleRecallProgress {
+  drillsPassed: string[];
+  attempts: number;
+  correctCount: number;
+  xpEarned: number;
+}
+
 export interface CurriculumModule {
   id: string;
   order: number;
+  unitTitle?: string;
   title: string;
   estimatedMinutes: number;
   summary: string;
@@ -63,6 +91,8 @@ export interface CurriculumModule {
   syntaxTopics: string[];
   examples: SyntaxExample[];
   commonPitfalls: string[];
+  recallDrills?: RecallExercise[];
+  xpReward?: number;
   challenge: PracticeChallenge;
   deepDive?: DeepDiveExpansion;
 }
@@ -93,12 +123,17 @@ export interface PersonalizationRequest {
   priorBackground: string;
   focusNotes: string;
   clientDateKey?: string;
+  plannedTopics?: string[];
 }
 
 export interface ModuleAccuracyEntry {
   attempts: number;
   passed: boolean;
   bestAccuracy: number;
+  drillsPassed?: string[];
+  recallAttempts?: number;
+  xpEarned?: number;
+  lastPracticedDate?: string;
 }
 
 export interface UserProfile {

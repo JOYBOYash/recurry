@@ -10,9 +10,14 @@
     />
     <link rel="canonical" href="https://recurry.vercel.app/" />
     <meta name="theme-color" content="#2563EB" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="recurry" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
-    <link rel="icon" type="image/png" href="/assets/images/app-logo.png" />
-    <link rel="apple-touch-icon" href="/assets/images/app-logo.png" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="icon" type="image/png" href="/pwa-192x192.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
     <!-- OpenGraph -->
     <meta property="og:type" content="website" />
@@ -153,8 +158,22 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <script>
+      (function () {
+        try {
+          if (window.location.pathname === '/') return;
+          var pref = localStorage.getItem('recurry:theme-preference:v1') || 'system';
+          var sysDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var isDark = pref === 'dark' || (pref === 'system' && sysDark);
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+            document.documentElement.style.colorScheme = 'dark';
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
-  <body class="bg-[#F7F8FA] text-[#0F172A] antialiased selection:bg-[#2563EB]/15 selection:text-[#1E40AF]">
+  <body class="bg-[#F7F8FA] text-[#0F172A] antialiased selection:bg-[#2563EB]/15 selection:text-[#1E40AF] dark:bg-[#121212] dark:text-neutral-100 dark:selection:bg-blue-500/30 dark:selection:text-blue-200">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

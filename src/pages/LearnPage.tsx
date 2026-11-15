@@ -1,29 +1,34 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
   Award,
+  Brain,
   CheckCircle2,
   Clock,
   Code2,
   Loader2,
+  Lock,
   Play,
   RotateCcw,
   Star,
+  Zap,
 } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { InlineCodeText } from '../components/InlineCodeText';
 import { LanguageIcon } from '../components/LanguageIcon';
+import { RankIcon } from '../components/RankIcon';
 import { WorkbenchView } from '../components/WorkbenchView';
 import { useAppAuth } from '../context/AppAuthContext';
 import { LANGUAGE_MAP, SKILL_LEVELS } from '../data/languages';
-import { triggerTrackCompletionConfetti } from '../utils/confetti';
+import { getModuleRecallDrills } from '../engines/learningEngine';
 import {
-  calculateTrackProgress,
   computeTrackAccuracyAndStars,
+  evaluateTrackModulesProgression,
   shouldTriggerTrackCelebration,
   type TrackCompletionSnapshot,
-} from '../utils/curriculumLogic';
+} from '../engines/progressionEngine';
+import { triggerTrackCompletionConfetti } from '../utils/confetti';
 
 export function LearnPage() {
   const { trackId } = useParams<{ trackId?: string }>();
@@ -33,11 +38,13 @@ export function LearnPage() {
     profile,
     tracks,
     certificates,
+    programmeLock,
     activeTrack,
     activeModuleId,
     selectTrackAndModule,
     toggleModuleComplete,
     recordChallengeAttempt,
+    recordRecallDrillAttempt,
     saveModuleDeepDive,
     redoTrack,
     issueTrackCertificate,
@@ -52,9 +59,16 @@ export function LearnPage() {
     : activeTrack;
 
   const completedModuleIds = profile?.completedModuleIds ?? [];
-  const progress = calculateTrackProgress(selectedTrack, completedModuleIds);
-  const isTrackComplete =
-    progress.totalCount > 0 && progress.completedCount === progress.totalCount;
+  const progression = useMemo(
+    () => evaluateTrackModulesProgression(selectedTrack, completedModuleIds),
+    [selectedTrack, completedModuleIds],
+  );
+
+  const isTrackComplete = progression.isTrackComplete;
+  const evaluatedProgramme = selectedTrack
+    ? programmeLock.programmesById[selectedTrack.id]
+    : undefined;
+  const isTrackLockedByActive = evaluatedProgramme?.status === 'locked';
 
   const prevCompletionRef = useRef<TrackCompletionSnapshot | null>(null);
   const confettiCleanupRef = useRef<(() => void) | null>(null);
@@ -91,22 +105,32 @@ export function LearnPage() {
   }, [selectedTrack, isTrackComplete]);
 
   useEffect(() => {
-    if (selectedTrack && activeTrack?.id !== selectedTrack.id) {
+    if (
+      selectedTrack &&
+      !isTrackLockedByActive &&
+      activeTrack?.id !== selectedTrack.id
+    ) {
       void selectTrackAndModule(
         selectedTrack.id,
-        selectedTrack.modules[0]?.id ?? null,
+        progression.nextUnlockedModuleId ?? selectedTrack.modules[0]?.id ?? null,
       );
     }
-  }, [selectedTrack, activeTrack?.id, selectTrackAndModule]);
+  }, [
+    selectedTrack,
+    isTrackLockedByActive,
+    activeTrack?.id,
+    progression.nextUnlockedModuleId,
+    selectTrackAndModule,
+  ]);
 
   if (!selectedTrack) {
     return (
       <div className="mx-auto max-w-xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
-          <h1 className="font-display text-2xl font-bold text-slate-950">
+        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center dark:border-neutral-800 dark:bg-[#181818]">
+          <h1 className="font-display text-2xl font-bold text-slate-950 dark:text-white">
             No curriculum selected
           </h1>
-          <p className="mt-2 text-sm text-slate-600">
+          <p className="mt-2 text-sm text-slate-600 dark:text-neutral-400">
             Generate or choose a curriculum to start learning.
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
@@ -118,7 +142,39 @@ export function LearnPage() {
             </Link>
             <Link
               to="/app/curriculums"
-              className="btn-juice inline-flex min-h-11 items-center rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700"
+              className="btn-juice inline-flex min-h-11 items-center rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-200 dark:hover:bg-[#262626]"
+            >
+              <span>My Curriculums</span>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isTrackLockedByActive && programmeLock.activeIncompleteTrackId) {
+    return (
+      <div className="mx-auto max-w-xl px-4 py-12 sm:px-6 lg:px-8">
+        <div className="rounded-2xl border-2 border-amber-300 bg-white p-8 text-center dark:border-amber-600/80 dark:bg-[#181818]">
+          <Lock className="mx-auto h-7 w-7 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+          <h1 className="mt-4 font-display text-2xl font-bold text-slate-950 dark:text-white">
+            Curriculum Locked
+          </h1>
+          <p className="mt-2 text-sm text-slate-600 dark:text-neutral-400">
+            {evaluatedProgramme?.lockReason ??
+              'Complete your active curriculum first to unlock this track.'}
+          </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <Link
+              to={`/app/learn/${encodeURIComponent(programmeLock.activeIncompleteTrackId)}`}
+              className="btn-juice inline-flex min-h-11 items-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700"
+            >
+              <Play className="h-4 w-4" aria-hidden="true" />
+              <span>Resume Active Track</span>
+            </Link>
+            <Link
+              to="/app/curriculums"
+              className="btn-juice inline-flex min-h-11 items-center rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-200 dark:hover:bg-[#262626]"
             >
               <span>My Curriculums</span>
             </Link>
@@ -129,7 +185,6 @@ export function LearnPage() {
   }
 
   const moduleAccuracy = profile?.moduleAccuracy ?? {};
-  const completedSet = new Set(completedModuleIds);
   const accuracy = computeTrackAccuracyAndStars(
     selectedTrack,
     moduleAccuracy,
@@ -158,6 +213,8 @@ export function LearnPage() {
         activeTrack={selectedTrack}
         activeModuleId={activeModuleId}
         completedModuleIds={completedModuleIds}
+        moduleAccuracy={moduleAccuracy}
+        progression={progression}
         isTrackComplete={isTrackComplete}
         getIdToken={getIdToken}
         onBackToPath={() => setMode('overview')}
@@ -168,13 +225,16 @@ export function LearnPage() {
         }}
         onToggleComplete={(modId, val) => void toggleModuleComplete(modId, val)}
         onRecordAttempt={(modId, passed) => void recordChallengeAttempt(modId, passed)}
+        onRecordRecallDrill={(modId, drillId, correct) =>
+          void recordRecallDrillAttempt(modId, drillId, correct)
+        }
         onSaveDeepDive={(tid, modId, dd) => void saveModuleDeepDive(tid, modId, dd)}
       />
     );
   }
 
   const nextModule =
-    selectedTrack.modules.find((m) => m.id === progress.nextModuleId) ??
+    selectedTrack.modules.find((m) => m.id === progression.nextUnlockedModuleId) ??
     selectedTrack.modules[0];
 
   return (
@@ -182,7 +242,7 @@ export function LearnPage() {
       <div className="flex items-center justify-between gap-3">
         <Link
           to="/app/curriculums"
-          className="btn-juice inline-flex min-h-10 items-center gap-1.5 rounded-xl px-2 text-xs font-semibold text-slate-600 hover:bg-slate-200/60 hover:text-slate-950"
+          className="btn-juice inline-flex min-h-10 items-center gap-1.5 rounded-xl px-2 text-xs font-semibold text-slate-600 hover:bg-slate-200/60 hover:text-slate-950 dark:text-neutral-400 dark:hover:bg-[#202020] dark:hover:text-white"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           <span>My Curriculums</span>
@@ -191,46 +251,56 @@ export function LearnPage() {
         <button
           type="button"
           onClick={() => void redoTrack(selectedTrack.id)}
-          className="btn-juice inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-blue-400 hover:text-blue-700"
+          className="btn-juice inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-blue-400 hover:text-blue-700 dark:border-neutral-700 dark:bg-[#181818] dark:text-neutral-200 dark:hover:border-blue-500 dark:hover:text-blue-400"
         >
           <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
           <span>Redo Track</span>
         </button>
       </div>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-7">
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-7 dark:border-neutral-800 dark:bg-[#181818]">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-start gap-4">
             <LanguageIcon language={selectedTrack.language} className="mt-1 h-8 w-8" />
             <div className="space-y-1">
-              <div className="flex flex-wrap items-center gap-2 font-mono text-xs text-blue-700">
+              <div className="flex flex-wrap items-center gap-2 font-mono text-xs text-blue-700 dark:text-blue-400">
                 <span className="font-semibold">
                   {langMeta.name} · {langMeta.standardLabel}
                 </span>
                 <span>·</span>
-                <span>{skillLabel}</span>
+                <span className="inline-flex items-center gap-1 font-semibold">
+                  <RankIcon rank={selectedTrack.skillLevel} useRankColor className="h-3.5 w-3.5" />
+                  <span>{skillLabel}</span>
+                </span>
               </div>
-              <h1 className="font-display text-2xl font-bold text-slate-950 sm:text-3xl">
+              <h1 className="font-display text-2xl font-bold text-slate-950 sm:text-3xl dark:text-white">
                 {selectedTrack.title}
               </h1>
-              <p className="text-sm text-slate-600">{selectedTrack.subtitle}</p>
+              <p className="text-sm text-slate-600 dark:text-neutral-400">{selectedTrack.subtitle}</p>
             </div>
+          </div>
+
+          <div className="inline-flex items-center gap-1.5 font-mono text-xs font-bold text-blue-700 tabular-nums dark:text-blue-400">
+            <Zap className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>
+              {progression.totalXpEarned} / {progression.totalXpPossible} XP
+            </span>
           </div>
         </div>
 
-        <div className="mt-5 space-y-3 border-t border-slate-100 pt-5">
-          <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
-            <span>Track Progress</span>
+        <div className="mt-5 space-y-3 border-t border-slate-100 pt-5 dark:border-neutral-800">
+          <div className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-neutral-200">
+            <span>Sequential Mastery Path</span>
             <span className="font-mono tabular-nums">
-              {progress.completedCount}/{progress.totalCount} · {progress.percentage}%
+              {progression.completedCount}/{progression.totalCount} · {progression.percentage}%
             </span>
           </div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+          <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-neutral-800">
             <div
               className={`h-full rounded-full transition-all duration-300 ${
-                progress.percentage === 100 ? 'bg-emerald-600' : 'bg-blue-600'
+                progression.percentage === 100 ? 'bg-emerald-600' : 'bg-blue-600'
               }`}
-              style={{ width: `${progress.percentage}%` }}
+              style={{ width: `${progression.percentage}%` }}
             />
           </div>
 
@@ -246,9 +316,9 @@ export function LearnPage() {
               >
                 <Play className="h-4 w-4" aria-hidden="true" />
                 <span>
-                  {progress.completedCount === 0
+                  {progression.completedCount === 0
                     ? `Start: ${nextModule.title}`
-                    : progress.percentage === 100
+                    : progression.percentage === 100
                       ? `Review: ${nextModule.title}`
                       : `Continue: ${nextModule.title}`}
                 </span>
@@ -258,8 +328,8 @@ export function LearnPage() {
         </div>
       </section>
 
-      {progress.percentage === 100 && (
-        <section className="flex flex-col items-start justify-between gap-4 rounded-2xl border-2 border-amber-400 bg-white p-6 sm:flex-row sm:items-center">
+      {progression.percentage === 100 && (
+        <section className="flex flex-col items-start justify-between gap-4 rounded-2xl border-2 border-amber-400 bg-white p-6 sm:flex-row sm:items-center dark:border-amber-600/80 dark:bg-[#181818]">
           <div className="space-y-1.5">
             <div className="flex items-center gap-1.5">
               {Array.from({ length: 5 }).map((_, i) => (
@@ -268,22 +338,22 @@ export function LearnPage() {
                   className={`h-4 w-4 ${
                     i < accuracy.stars
                       ? 'fill-amber-400 text-amber-500'
-                      : 'text-slate-300'
+                      : 'text-slate-300 dark:text-neutral-700'
                   }`}
                   aria-hidden="true"
                 />
               ))}
-              <span className="ml-1 font-mono text-xs font-bold text-amber-900 tabular-nums">
+              <span className="ml-1 font-mono text-xs font-bold text-amber-900 tabular-nums dark:text-amber-300">
                 {accuracy.accuracyPercent}% Accuracy · {accuracy.stars}/5 Stars
               </span>
             </div>
-            <h2 className="font-display text-lg font-bold text-slate-950">
+            <h2 className="font-display text-lg font-bold text-slate-950 dark:text-white">
               Curriculum complete!
             </h2>
-            <p className="text-xs text-slate-600">
+            <p className="text-xs text-slate-600 dark:text-neutral-400">
               {existingCert
                 ? 'Your certificate has been issued to your Certificates vault.'
-                : 'Generate your star-ranked certificate based on your problem-solving accuracy.'}
+                : 'Claim your star-ranked certificate and unlock your next curriculum.'}
             </p>
           </div>
 
@@ -314,21 +384,31 @@ export function LearnPage() {
       )}
 
       <ul className="space-y-3">
-        {selectedTrack.modules.map((mod) => {
-          const isDone = completedSet.has(mod.id);
-          const isNext = !isDone && mod.id === progress.nextModuleId;
+        {selectedTrack.modules.map((mod, idx) => {
+          const node = progression.nodes[idx];
+          const isDone = node?.status === 'completed';
+          const isAvailable = node?.status === 'available';
+          const isLocked = node?.status === 'locked';
           const modAcc = moduleAccuracy[mod.id];
-          const CornerIcon = isDone ? CheckCircle2 : isNext ? Play : Code2;
+          const drills = getModuleRecallDrills(mod, selectedTrack.language);
+          const drillsPassedCount = (modAcc?.drillsPassed ?? []).length;
+          const CornerIcon = isDone
+            ? CheckCircle2
+            : isAvailable
+              ? Play
+              : isLocked
+                ? Lock
+                : Code2;
 
           return (
             <li
               key={mod.id}
-              className={`relative overflow-hidden rounded-2xl border bg-white p-5 ${
-                isNext
-                  ? 'border-blue-600'
+              className={`relative overflow-hidden rounded-2xl border p-5 transition-colors ${
+                isAvailable
+                  ? 'border-2 border-blue-600 bg-white dark:border-blue-500 dark:bg-[#181818]'
                   : isDone
-                    ? 'border-emerald-500'
-                    : 'border-slate-200'
+                    ? 'border-emerald-500 bg-white dark:border-emerald-600 dark:bg-[#181818]'
+                    : 'border-slate-200 bg-slate-50/70 opacity-80 dark:border-neutral-800 dark:bg-[#141414]'
               }`}
             >
               <CornerIcon
@@ -336,70 +416,110 @@ export function LearnPage() {
                 className={`pointer-events-none absolute -right-3 -bottom-4 h-20 w-20 -rotate-12 ${
                   isDone
                     ? 'text-emerald-600 opacity-[0.09]'
-                    : isNext
+                    : isAvailable
                       ? 'text-blue-600 opacity-[0.09]'
-                      : 'text-slate-400 opacity-[0.08]'
+                      : 'text-slate-400 opacity-[0.08] dark:text-neutral-600'
                 }`}
               />
               <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="space-y-1">
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-neutral-400">
+                    {mod.unitTitle && (
+                      <>
+                        <span className="font-mono font-semibold text-slate-700 dark:text-neutral-300">
+                          {mod.unitTitle}
+                        </span>
+                        <span>·</span>
+                      </>
+                    )}
                     <span className="inline-flex items-center gap-1 font-mono tabular-nums">
                       <Clock className="h-3.5 w-3.5" aria-hidden="true" />
                       {mod.estimatedMinutes}m
                     </span>
+                    <span>·</span>
+                    <span className="inline-flex items-center gap-1 font-mono font-semibold text-blue-700 tabular-nums dark:text-blue-400">
+                      <Brain className="h-3.5 w-3.5" aria-hidden="true" />
+                      {Math.min(drillsPassedCount, drills.length)}/{drills.length} recall
+                    </span>
+                    <span>·</span>
+                    <span className="font-mono font-semibold text-amber-700 tabular-nums dark:text-amber-400">
+                      +{node?.xpReward ?? 30} XP
+                    </span>
                     {modAcc && modAcc.attempts > 0 && (
                       <>
                         <span>·</span>
-                        <span className="font-mono font-semibold text-blue-700 tabular-nums">
+                        <span className="font-mono font-semibold text-emerald-700 tabular-nums dark:text-emerald-400">
                           {modAcc.bestAccuracy}% accuracy
                         </span>
                       </>
                     )}
                   </div>
-                  <h3 className="font-display text-base font-bold text-slate-950">
+                  <h3 className="font-display text-base font-bold text-slate-950 dark:text-white">
                     {mod.title}
                   </h3>
-                  <p className="text-sm text-slate-600">
-                    <InlineCodeText text={mod.summary} />
+                  <p className="text-sm text-slate-600 dark:text-neutral-300">
+                    {isLocked && node?.lockedReason ? (
+                      <span className="inline-flex items-center gap-1.5 font-medium text-slate-500 dark:text-neutral-400">
+                        <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                        <span>{node.lockedReason}</span>
+                      </span>
+                    ) : (
+                      <InlineCodeText text={mod.summary} />
+                    )}
                   </p>
                 </div>
 
                 <div className="flex items-center gap-2 sm:shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => void toggleModuleComplete(mod.id)}
-                    aria-pressed={isDone}
-                    className={`btn-juice inline-flex min-h-10 items-center gap-1.5 rounded-xl border bg-white px-3 py-2 text-xs font-semibold ${
-                      isDone
-                        ? 'border-emerald-500 text-emerald-800'
-                        : 'border-slate-200 text-slate-700 hover:border-slate-300'
-                    }`}
-                  >
-                    <CheckCircle2
-                      className={`h-4 w-4 ${isDone ? 'text-emerald-600' : 'text-slate-400'}`}
-                      aria-hidden="true"
-                    />
-                    <span>{isDone ? 'Done' : 'Complete'}</span>
-                  </button>
+                  {!isLocked && (
+                    <button
+                      type="button"
+                      onClick={() => void toggleModuleComplete(mod.id)}
+                      aria-pressed={isDone}
+                      className={`btn-juice inline-flex min-h-10 items-center gap-1.5 rounded-xl border bg-white px-3 py-2 text-xs font-semibold dark:bg-[#202020] ${
+                        isDone
+                          ? 'border-emerald-500 text-emerald-800 dark:border-emerald-600 dark:text-emerald-300'
+                          : 'border-slate-200 text-slate-700 hover:border-slate-300 dark:border-neutral-700 dark:text-neutral-200 dark:hover:border-neutral-600'
+                      }`}
+                    >
+                      <CheckCircle2
+                        className={`h-4 w-4 ${isDone ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-neutral-500'}`}
+                        aria-hidden="true"
+                      />
+                      <span>{isDone ? 'Done' : 'Complete'}</span>
+                    </button>
+                  )}
 
                   <button
                     type="button"
+                    disabled={isLocked}
                     onClick={async () => {
                       await selectTrackAndModule(selectedTrack.id, mod.id);
                       setMode('workbench');
                     }}
                     className={`btn-juice group inline-flex min-h-10 items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold ${
-                      isNext
-                        ? 'border-b-2 border-blue-800 bg-blue-600 text-white hover:bg-blue-700'
-                        : 'bg-slate-900 text-white hover:bg-slate-800'
+                      isLocked
+                        ? 'cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400 dark:border-neutral-800 dark:bg-[#202020] dark:text-neutral-500'
+                        : isAvailable
+                          ? 'border-b-2 border-blue-800 bg-blue-600 text-white hover:bg-blue-700'
+                          : 'bg-slate-900 text-white hover:bg-slate-800 dark:bg-[#262626] dark:hover:bg-[#303030]'
                     }`}
                   >
-                    <span>{isNext ? 'Start' : 'Open'}</span>
-                    <ArrowRight
-                      className="h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-0.5"
-                      aria-hidden="true"
-                    />
+                    {isLocked ? (
+                      <>
+                        <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span>Locked</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>
+                          {isAvailable ? 'Start Lesson' : isDone ? 'Review' : 'Open'}
+                        </span>
+                        <ArrowRight
+                          className="h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-0.5"
+                          aria-hidden="true"
+                        />
+                      </>
+                    )}
                   </button>
                 </div>
               </div>

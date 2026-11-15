@@ -1,7 +1,12 @@
 import 'dotenv/config';
 import express, { type NextFunction, type Request, type Response } from 'express';
+import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  buildNoHmrViteClientModule,
+  shouldEnableViteHmr,
+} from './server/viteClientShim.ts';
 import {
   readFallbackFirebaseJson,
   resolveServerConfig,
@@ -32,6 +37,10 @@ import {
   consumeUserDailyQuota,
   getUserDailyQuota,
 } from './server/store.ts';
+import {
+  listLeaderboardEntries,
+  upsertLeaderboardEntry,
+} from './server/leaderboardStore.ts';
 import type {
   LanguageId,
   LearningFocus,
@@ -196,6 +205,36 @@ async function startServer() {
     }
   });
 
+  app.get('/api/leaderboard', async (req, res) => {
+    try {
+      await verifyFirebaseUser(req);
+      const entries = await listLeaderboardEntries(50);
+      res.json({ entries });
+    } catch (error) {
+      respondWithSafeError(res, error, 'Unable to load leaderboard.');
+    }
+  });
+
+  app.post('/api/leaderboard/sync', async (req, res) => {
+    try {
+      const { uid } = await verifyFirebaseUser(req);
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const entry = await upsertLeaderboardEntry(uid, {
+        username: body.username,
+        preferredLanguage: body.preferredLanguage,
+        rank: body.rank,
+        weeklyActiveDays: body.weeklyActiveDays,
+        currentStreak: body.currentStreak,
+        weeklyModulesCompleted: body.weeklyModulesCompleted,
+        totalModulesCompleted: body.totalModulesCompleted,
+      });
+      const entries = await listLeaderboardEntries(50);
+      res.json({ entry, entries });
+    } catch (error) {
+      respondWithSafeError(res, error, 'Unable to sync leaderboard progress.');
+    }
+  });
+
   app.post('/api/curriculum/generate', async (req, res) => {
     try {
       const { uid } = await verifyFirebaseUser(req);
@@ -241,6 +280,7 @@ async function startServer() {
         paceDepth,
         priorBackground: clampString(body.priorBackground, 320),
         focusNotes: clampString(body.focusNotes, 400),
+        plannedTopics: sanitizeStringArray(body.plannedTopics, 8, 120),
       });
 
       const updatedQuota = await consumeUserDailyQuota(uid, clientDateKey);
@@ -396,10 +436,27 @@ async function startServer() {
     res.status(404).json({ error: 'API endpoint not found.' });
   });
 
+  const httpServer = http.createServer(app);
+
   if (!config.isProduction) {
+    const hmrEnabled = shouldEnableViteHmr(process.env);
+    if (!hmrEnabled) {
+      const noHmrClient = buildNoHmrViteClientModule();
+      app.get('/@vite/client', (_req, res) => {
+        res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-store');
+        res.send(noHmrClient);
+      });
+    }
+
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: hmrEnabled ? { server: httpServer } : false,
+        ws: hmrEnabled ? undefined : false,
+        watch: hmrEnabled ? {} : null,
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -429,7 +486,7 @@ async function startServer() {
     }
   });
 
-  app.listen(config.port, config.host, () => {
+  httpServer.listen(config.port, config.host, () => {
     console.log(
       `recurry server listening on http://${config.host}:${config.port} (${config.isProduction ? 'production' : 'development'})`,
     );

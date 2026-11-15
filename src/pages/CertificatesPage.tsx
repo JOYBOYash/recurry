@@ -67,10 +67,10 @@ export function CertificatesPage() {
     <div className="mx-auto max-w-4xl space-y-8 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="font-display text-2xl font-bold text-slate-950 sm:text-3xl">
+          <h1 className="font-display text-2xl font-bold text-slate-950 dark:text-white sm:text-3xl">
             Certificates
           </h1>
-          <p className="mt-0.5 text-xs text-slate-500">
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-neutral-400">
             Ranked 1–5 stars by your problem-solving accuracy across track modules.
           </p>
         </div>
@@ -78,7 +78,7 @@ export function CertificatesPage() {
           <button
             type="button"
             onClick={() => window.print()}
-            className="btn-juice inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 print:hidden"
+            className="btn-juice inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 print:hidden dark:border-neutral-700 dark:bg-[#181818] dark:text-neutral-200 dark:hover:bg-[#202020]"
           >
             <Printer className="h-3.5 w-3.5" aria-hidden="true" />
             <span>Print</span>
@@ -87,23 +87,23 @@ export function CertificatesPage() {
       </div>
 
       {claimableTracks.length > 0 && (
-        <section className="space-y-3 rounded-2xl border border-amber-300 bg-white p-5">
-          <h2 className="font-display text-base font-bold text-slate-950">
+        <section className="space-y-3 rounded-2xl border border-amber-300 bg-white p-5 dark:border-amber-600/80 dark:bg-[#181818]">
+          <h2 className="font-display text-base font-bold text-slate-950 dark:text-white">
             Ready to claim
           </h2>
           <div className="space-y-2.5">
             {claimableTracks.map((track) => (
               <div
                 key={track.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-neutral-800 dark:bg-[#202020]"
               >
                 <div className="flex items-center gap-3">
                   <LanguageIcon language={track.language} className="h-7 w-7" />
                   <div>
-                    <div className="font-display text-sm font-bold text-slate-950">
+                    <div className="font-display text-sm font-bold text-slate-950 dark:text-white">
                       {track.title}
                     </div>
-                    <div className="font-mono text-xs text-slate-500">
+                    <div className="font-mono text-xs text-slate-500 dark:text-neutral-400">
                       {track.modules.length}/{track.modules.length} modules complete
                     </div>
                   </div>
@@ -135,17 +135,17 @@ export function CertificatesPage() {
       )}
 
       {certificates.length === 0 && claimableTracks.length === 0 ? (
-        <section className="rounded-2xl border border-slate-200 bg-white p-10 text-center">
-          <Award className="mx-auto h-9 w-9 text-slate-400" aria-hidden="true" />
-          <h2 className="mt-4 font-display text-lg font-bold text-slate-950">
+        <section className="rounded-2xl border border-slate-200 bg-white p-10 text-center dark:border-neutral-800 dark:bg-[#181818]">
+          <Award className="mx-auto h-9 w-9 text-slate-400 dark:text-neutral-500" aria-hidden="true" />
+          <h2 className="mt-4 font-display text-lg font-bold text-slate-950 dark:text-white">
             No certificates earned yet
           </h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-slate-600 dark:text-neutral-300">
             Finish every module in a curriculum to earn a star-ranked certificate.
           </p>
           <Link
             to="/app/curriculums"
-            className="btn-juice mt-6 inline-flex min-h-11 items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-xs font-bold text-white hover:bg-slate-800"
+            className="btn-juice mt-6 inline-flex min-h-11 items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-xs font-bold text-white hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-700"
           >
             <span>Open Curriculums</span>
           </Link>
@@ -162,34 +162,34 @@ export function CertificatesPage() {
             return (
               <article
                 key={cert.id}
-                className="rounded-2xl border-2 border-slate-200 bg-white p-6 sm:p-8"
+                className="rounded-2xl border-2 border-slate-200 bg-white p-6 dark:border-neutral-800 dark:bg-[#181818] sm:p-8"
               >
-                <div className="rounded-xl border border-slate-200 bg-white p-6 sm:p-8">
-                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-4">
+                <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-neutral-800 dark:bg-[#202020] sm:p-8">
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-4 dark:border-neutral-800">
                     <div className="flex items-center gap-3">
                       <LanguageIcon language={cert.language} className="h-7 w-7" />
                       <div>
-                        <div className="font-mono text-[11px] font-semibold text-blue-700">
+                        <div className="font-mono text-[11px] font-semibold text-blue-700 dark:text-blue-400">
                           CERTIFICATE OF COMPLETION
                         </div>
-                        <div className="font-display text-lg font-bold text-slate-950">
+                        <div className="font-display text-lg font-bold text-slate-950 dark:text-white">
                           recurry · {langMeta.name}
                         </div>
                       </div>
                     </div>
-                    <span className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-mono text-xs font-semibold text-slate-700">
+                    <span className="font-mono text-xs font-semibold text-slate-700 dark:text-neutral-200">
                       {cert.certificateCode}
                     </span>
                   </div>
 
                   <div className="py-6 text-center">
-                    <p className="text-xs font-medium text-slate-500">
+                    <p className="text-xs font-medium text-slate-500 dark:text-neutral-400">
                       Awarded to
                     </p>
-                    <h2 className="mt-1 font-display text-3xl font-bold text-slate-950">
+                    <h2 className="mt-1 font-display text-3xl font-bold text-slate-950 dark:text-white">
                       @{cert.username}
                     </h2>
-                    <p className="mt-2 text-sm font-semibold text-slate-700">
+                    <p className="mt-2 text-sm font-semibold text-slate-700 dark:text-neutral-300">
                       {cert.trackTitle}
                     </p>
 
@@ -203,25 +203,25 @@ export function CertificatesPage() {
                           className={`h-6 w-6 ${
                             idx < cert.stars
                               ? 'fill-amber-400 text-amber-500'
-                              : 'text-slate-200'
+                              : 'text-slate-200 dark:text-neutral-700'
                           }`}
                           aria-hidden="true"
                         />
                       ))}
                     </div>
 
-                    <div className="mt-3 font-mono text-xs font-bold text-slate-800 tabular-nums">
+                    <div className="mt-3 font-mono text-xs font-bold text-slate-800 tabular-nums dark:text-neutral-200">
                       {cert.stars}/5 Stars · {cert.accuracyPercent}% Accuracy ·{' '}
                       {cert.completedModulesCount} Modules
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4 text-xs text-slate-500">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4 text-xs text-slate-500 dark:border-neutral-800 dark:text-neutral-400">
                     <span className="font-mono">Issued {dateFormatted}</span>
                     <button
                       type="button"
                       onClick={() => handleDownloadSvg(cert)}
-                      className="btn-juice inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-800 hover:border-blue-600 hover:text-blue-700 print:hidden"
+                      className="btn-juice inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-800 hover:border-blue-600 hover:text-blue-700 print:hidden dark:border-neutral-700 dark:bg-[#181818] dark:text-neutral-200 dark:hover:border-blue-500 dark:hover:text-blue-300"
                     >
                       <Download className="h-3.5 w-3.5" aria-hidden="true" />
                       <span>Download SVG</span>

@@ -26,10 +26,11 @@ export function BrandLogo({
     tone === 'light'
       ? 'bg-white'
       : tone === 'dark'
-        ? 'bg-slate-950'
-        : 'bg-[#2563EB]';
+        ? 'bg-slate-950 dark:bg-white'
+        : 'bg-[#2563EB] dark:bg-blue-500';
 
-  const textColorClass = tone === 'light' ? 'text-white' : 'text-slate-950';
+  const textColorClass =
+    tone === 'light' ? 'text-white' : 'text-slate-950 dark:text-white';
 
   return (
     <span className="inline-flex shrink-0 items-center whitespace-nowrap">

@@ -30,18 +30,18 @@ export function SigningInView() {
   return (
     <ScenicBackdrop>
       <div className="flex h-full w-full items-center justify-center px-4">
-        <div className="animate-view-enter w-full max-w-sm rounded-3xl border border-white/80 bg-white/95 p-8 text-center shadow-[0_28px_70px_-18px_rgba(15,23,42,0.34)] backdrop-blur-xl">
+        <div className="animate-view-enter w-full max-w-sm rounded-3xl border border-white/80 bg-white/95 p-8 text-center shadow-[0_28px_70px_-18px_rgba(15,23,42,0.34)] backdrop-blur-xl dark:border-neutral-800/90 dark:bg-[#181818]/95 dark:shadow-[0_28px_70px_-18px_rgba(0,0,0,0.75)]">
           <div className="mx-auto flex justify-center">
             {user && !dataLoading ? (
-              <CheckCircle2 className="h-9 w-9 text-emerald-600" aria-hidden="true" />
+              <CheckCircle2 className="h-9 w-9 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
             ) : (
-              <Loader2 className="h-9 w-9 animate-spin text-blue-600" aria-hidden="true" />
+              <Loader2 className="h-9 w-9 animate-spin text-blue-600 dark:text-blue-400" aria-hidden="true" />
             )}
           </div>
-          <h1 className="mt-4 font-display text-xl font-bold text-slate-950">
+          <h1 className="mt-4 font-display text-xl font-bold text-slate-950 dark:text-white">
             Signing you in
           </h1>
-          <p className="mt-1 text-xs text-slate-600">
+          <p className="mt-1 text-xs text-slate-600 dark:text-neutral-300">
             {user && !dataLoading
               ? 'Session verified. Opening your workspace...'
               : 'Syncing your Firebase profile and streaks...'}

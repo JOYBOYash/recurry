@@ -1,9 +1,10 @@
 import { initializeApp, type FirebaseApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, type Auth } from 'firebase/auth';
 import {
-  doc,
-  getDocFromServer,
   getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
   type Firestore,
 } from 'firebase/firestore';
 import {
@@ -29,9 +30,26 @@ if (!isFirebaseConfigured) {
 }
 
 const app: FirebaseApp = initializeApp(resolved.firebaseConfig);
-export const db: Firestore = resolved.databaseId
-  ? getFirestore(app, resolved.databaseId)
-  : getFirestore(app);
+
+function createFirestoreInstance(): Firestore {
+  try {
+    return initializeFirestore(
+      app,
+      {
+        localCache: persistentLocalCache({
+          tabManager: persistentMultipleTabManager(),
+        }),
+      },
+      resolved.databaseId || undefined,
+    );
+  } catch {
+    return resolved.databaseId
+      ? getFirestore(app, resolved.databaseId)
+      : getFirestore(app);
+  }
+}
+
+export const db: Firestore = createFirestoreInstance();
 export const auth: Auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
@@ -87,19 +105,3 @@ export function handleFirestoreError(
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
-
-async function testConnection() {
-  if (!isFirebaseConfigured) return;
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message.includes('the client is offline')
-    ) {
-      console.error('Please check your Firebase configuration.');
-    }
-  }
-}
-
-void testConnection();

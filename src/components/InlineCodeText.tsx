@@ -12,7 +12,7 @@ export function InlineCodeText({ text, className = '' }: InlineCodeTextProps) {
           return (
             <code
               key={idx}
-              className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[0.88em] font-medium text-slate-900"
+              className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[0.88em] font-medium text-slate-900 dark:bg-[#262626] dark:text-neutral-100"
             >
               {part.slice(1, -1)}
             </code>

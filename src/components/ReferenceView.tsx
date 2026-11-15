@@ -14,7 +14,6 @@ import {
 } from '../data/languages';
 import type {
   LanguageId,
-  PersistedAppState,
   ReferenceCategory,
   ReferenceEntry,
 } from '../types/curriculum';
@@ -154,21 +153,21 @@ export function ReferenceView({
   return (
     <div className="mx-auto max-w-4xl space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
       <div className="space-y-1">
-        <h1 className="font-display text-2xl font-bold text-slate-950 sm:text-3xl">
+        <h1 className="font-display text-2xl font-bold text-slate-950 dark:text-white sm:text-3xl">
           Syntax Reference
         </h1>
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-slate-600 dark:text-neutral-400">
           Side-by-side idioms across SQL, Java, C++, Python, JavaScript, and Ruby.
         </p>
       </div>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6">
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 dark:border-neutral-800 dark:bg-[#181818]">
         <form onSubmit={handleGenerate} className="space-y-4">
           <div className="grid gap-3.5 sm:grid-cols-12">
             <div className="sm:col-span-7">
               <label
                 htmlFor="reference-topic-input"
-                className="block text-xs font-semibold text-slate-600"
+                className="block text-xs font-semibold text-slate-600 dark:text-neutral-300"
               >
                 Concept
               </label>
@@ -181,14 +180,14 @@ export function ReferenceView({
                   if (genError) setGenError(null);
                 }}
                 placeholder="Pattern matching, window functions, smart pointers..."
-                className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none"
+                className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none dark:border-neutral-700 dark:bg-[#202020] dark:text-white dark:placeholder:text-neutral-500 dark:focus:border-blue-500"
               />
             </div>
 
             <div className="sm:col-span-5">
               <label
                 htmlFor="reference-category-select"
-                className="block text-xs font-semibold text-slate-600"
+                className="block text-xs font-semibold text-slate-600 dark:text-neutral-300"
               >
                 Category
               </label>
@@ -198,7 +197,7 @@ export function ReferenceView({
                 onChange={(e) =>
                   setGenCategory(e.target.value as ReferenceCategory)
                 }
-                className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none"
+                className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none dark:border-neutral-700 dark:bg-[#202020] dark:text-white dark:focus:border-blue-500"
               >
                 {REFERENCE_CATEGORIES.map((cat) => (
                   <option key={cat} value={cat}>
@@ -218,10 +217,10 @@ export function ReferenceView({
                   type="button"
                   onClick={() => toggleLanguage(lang.id)}
                   aria-pressed={selected}
-                  className={`btn-juice group inline-flex min-h-10 items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-semibold ${
+                  className={`btn-juice group inline-flex min-h-10 items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-semibold dark:bg-[#202020] ${
                     selected
-                      ? 'border-blue-600 text-blue-700'
-                      : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                      ? 'border-blue-600 text-blue-700 dark:border-blue-500 dark:text-blue-400'
+                      : 'border-slate-200 text-slate-600 hover:border-slate-300 dark:border-neutral-800 dark:text-neutral-400 dark:hover:border-neutral-700 dark:hover:text-neutral-200'
                   }`}
                 >
                   <LanguageIcon language={lang.id} className="h-4 w-4" />
@@ -231,7 +230,7 @@ export function ReferenceView({
             })}
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 dark:border-neutral-800">
             <div className="flex flex-wrap items-center gap-2">
               {SUGGESTED_TOPICS.map((item) => (
                 <button
@@ -242,7 +241,7 @@ export function ReferenceView({
                     setGenCategory(item.category);
                     setGenError(null);
                   }}
-                  className="btn-juice min-h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 hover:border-blue-400 hover:text-blue-700"
+                  className="btn-juice min-h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 hover:border-blue-400 hover:text-blue-700 dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-300 dark:hover:border-blue-500 dark:hover:text-blue-400"
                 >
                   {item.label}
                 </button>
@@ -271,10 +270,10 @@ export function ReferenceView({
           {genError && (
             <div
               role="alert"
-              className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs text-red-800"
+              className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs text-red-800 dark:border-red-800/80 dark:bg-[#202020] dark:text-red-300"
             >
               <AlertCircle
-                className="mt-0.5 h-4 w-4 shrink-0 text-red-600"
+                className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400"
                 aria-hidden="true"
               />
               <span>{genError}</span>
@@ -284,23 +283,23 @@ export function ReferenceView({
       </section>
 
       {entries.length === 0 ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center">
-          <h2 className="font-display text-base font-bold text-slate-900">
+        <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center dark:border-neutral-800 dark:bg-[#181818]">
+          <h2 className="font-display text-base font-bold text-slate-900 dark:text-white">
             No saved comparisons
           </h2>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-slate-500 dark:text-neutral-400">
             Choose a concept above to compare syntax across languages.
           </p>
         </div>
       ) : (
         <div className="space-y-5">
-          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-neutral-800 dark:bg-[#181818] sm:flex-row sm:items-center sm:justify-between">
             <div className="relative flex-1">
               <label htmlFor="reference-search-input" className="sr-only">
                 Filter saved comparisons
               </label>
               <Search
-                className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-neutral-500"
                 aria-hidden="true"
               />
               <input
@@ -309,7 +308,7 @@ export function ReferenceView({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Filter comparisons..."
-                className="min-h-11 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none"
+                className="min-h-11 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none dark:border-neutral-700 dark:bg-[#202020] dark:text-white dark:placeholder:text-neutral-500 dark:focus:border-blue-500"
               />
             </div>
 
@@ -319,7 +318,7 @@ export function ReferenceView({
               onChange={(e) =>
                 setFilterCategory(e.target.value as ReferenceCategory | 'All')
               }
-              className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-blue-600 focus:outline-none"
+              className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-blue-600 focus:outline-none dark:border-neutral-700 dark:bg-[#202020] dark:text-white dark:focus:border-blue-500"
             >
               <option value="All">All Categories</option>
               {REFERENCE_CATEGORIES.map((cat) => (
@@ -331,7 +330,7 @@ export function ReferenceView({
           </div>
 
           {filtered.length === 0 ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
+            <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 dark:border-neutral-800 dark:bg-[#181818] dark:text-neutral-400">
               No matches found.
             </div>
           ) : (
@@ -343,17 +342,17 @@ export function ReferenceView({
                 return (
                   <article
                     key={entry.id}
-                    className="rounded-2xl border border-slate-200 bg-white p-6"
+                    className="rounded-2xl border border-slate-200 bg-white p-6 dark:border-neutral-800 dark:bg-[#181818]"
                   >
-                    <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
+                    <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4 dark:border-neutral-800">
                       <div>
-                        <p className="text-xs font-medium text-slate-500">
+                        <p className="text-xs font-medium text-slate-500 dark:text-neutral-400">
                           {entry.category}
                         </p>
-                        <h2 className="mt-1 font-display text-xl font-bold text-slate-950">
+                        <h2 className="mt-1 font-display text-xl font-bold text-slate-950 dark:text-white">
                           {entry.concept}
                         </h2>
-                        <p className="mt-1 text-sm text-slate-600">
+                        <p className="mt-1 text-sm text-slate-600 dark:text-neutral-300">
                           {entry.description}
                         </p>
                       </div>
@@ -362,7 +361,7 @@ export function ReferenceView({
                         type="button"
                         onClick={() => onDeleteEntry(entry.id)}
                         aria-label={`Remove reference entry ${entry.concept}`}
-                        className="btn-juice inline-flex min-h-10 items-center gap-1 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:border-red-200 hover:bg-red-50 hover:text-red-700"
+                        className="btn-juice inline-flex min-h-10 items-center gap-1 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-300 dark:hover:border-red-800 dark:hover:bg-[#262626] dark:hover:text-red-300"
                       >
                         <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                         <span>Remove</span>
@@ -375,7 +374,7 @@ export function ReferenceView({
                         return (
                           <div key={lang.id} className="space-y-2">
                             <div className="flex items-center justify-between gap-2">
-                              <span className="inline-flex items-center gap-2 text-xs font-semibold text-slate-800">
+                              <span className="inline-flex items-center gap-2 text-xs font-semibold text-slate-800 dark:text-neutral-200">
                                 <LanguageIcon
                                   language={lang.id}
                                   className="h-4 w-4"
@@ -387,7 +386,7 @@ export function ReferenceView({
                               <button
                                 type="button"
                                 onClick={() => onStartTrackForLanguage(lang.id)}
-                                className="group inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800"
+                                className="group inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
                               >
                                 <span>Track</span>
                                 <ArrowRight
@@ -401,7 +400,7 @@ export function ReferenceView({
                               language={lang.id}
                               compact
                             />
-                            <p className="text-xs leading-relaxed text-slate-600">
+                            <p className="text-xs leading-relaxed text-slate-600 dark:text-neutral-300">
                               <InlineCodeText text={snippet.usage} />
                             </p>
                           </div>

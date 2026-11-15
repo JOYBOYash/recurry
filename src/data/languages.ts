@@ -107,6 +107,7 @@ export const DAILY_GOAL_PRESETS: Array<{
   { modules: 1, label: 'Casual' },
   { modules: 2, label: 'Steady' },
   { modules: 3, label: 'Focused' },
+  { modules: 4, label: 'Driven' },
   { modules: 5, label: 'Intense' },
 ];
 

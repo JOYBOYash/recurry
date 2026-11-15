@@ -109,24 +109,37 @@ export async function generatePersonalizedCurriculum(
   const languageLabel = LANGUAGE_LABELS[req.language];
   const skillDesc = SKILL_LEVEL_PROMPTS[req.skillLevel] ?? SKILL_LEVEL_PROMPTS.intern;
   const focusDesc = FOCUS_PROMPTS[req.learningFocus] ?? FOCUS_PROMPTS.syntax;
+  const plannedTopics = Array.isArray(req.plannedTopics)
+    ? req.plannedTopics.slice(0, moduleCount)
+    : [];
 
   const prompt = [
-    `Create a personalized, progressive curriculum for ${languageLabel}.`,
+    `Create a personalized, Duolingo-style progression curriculum for ${languageLabel}.`,
     `Learner Skill Level: ${skillDesc}.`,
     `Learning Focus: ${focusDesc}.`,
-    `Module Count: exactly ${moduleCount} ordered modules progressing cleanly toward mastery.`,
+    `Module Count: exactly ${moduleCount} ordered modules progressing from foundation -> applied -> mastery.`,
+    plannedTopics.length > 0
+      ? `Follow this planned topic sequence closely:\n${plannedTopics.map((t, i) => `  Module ${i + 1}: ${t}`).join('\n')}`
+      : '',
     req.priorBackground.trim()
       ? `Prior Background to bridge from: ${req.priorBackground.trim()}`
       : 'Prior Background: None specified.',
     req.focusNotes.trim()
       ? `Specific focus areas: ${req.focusNotes.trim()}`
       : 'Focus: Complete syntax grammar, control structures, data structures, error handling, and real usage.',
-    'Requirements:',
+    'Pedagogy & Active Recall Requirements (generate ALL of this in one single pass):',
+    '- Group modules into clear units using unitTitle (e.g., "Unit 1 · Core Foundations", "Unit 2 · Structured Patterns", "Unit 3 · Applied Mastery").',
     '- Every code example and starterCode must be syntactically valid, clean, and idiomatic.',
     '- Keep track subtitle under 10 words, bridgingStrategy to 1 crisp sentence, and module summaries to 1 short sentence.',
-    '- Keep example explanation and usageNote to 1 concise sentence each—zero fluff or filler.',
-    '- Design each practice challenge with clear acceptance criteria so code accuracy can be strictly verified.',
-  ].join('\n');
+    '- Keep example explanation and usageNote to 1 concise sentence each—zero fluff.',
+    '- Include exactly 3 progressive recallDrills per module ordered by difficulty: (1) foundation, (2) applied, (3) mastery.',
+    '- Mix recallDrills types across "multiple_choice", "predict_output", "fill_blank", and "bug_fix" so the learner uses active recall before coding.',
+    '- For "multiple_choice", "predict_output", and "bug_fix", provide 3-4 concise options and set answer to the exact matching option string.',
+    '- For "fill_blank", include a codeSnippet with "____" and set answer to the exact missing syntax token.',
+    '- Design each practice challenge with clear acceptance criteria and realistic difficulty calibrated to the learner skill level.',
+  ]
+    .filter(Boolean)
+    .join('\n');
 
   try {
     const response = await ai.models.generateContent({
@@ -134,7 +147,7 @@ export async function generatePersonalizedCurriculum(
       contents: prompt,
       config: {
         systemInstruction:
-          'You are an authoritative programming language curriculum architect for recurry. Output strictly valid JSON matching the requested schema.',
+          'You are an authoritative programming language curriculum architect for recurry. Build Duolingo-style active-recall coding tracks. Output strictly valid JSON matching the requested schema.',
         thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
         responseMimeType: 'application/json',
         responseSchema: {
@@ -148,8 +161,10 @@ export async function generatePersonalizedCurriculum(
               items: {
                 type: Type.OBJECT,
                 properties: {
+                  unitTitle: { type: Type.STRING },
                   title: { type: Type.STRING },
                   estimatedMinutes: { type: Type.INTEGER },
+                  xpReward: { type: Type.INTEGER },
                   summary: { type: Type.STRING },
                   syntaxGrammar: { type: Type.STRING },
                   syntaxTopics: {
@@ -172,6 +187,44 @@ export async function generatePersonalizedCurriculum(
                   commonPitfalls: {
                     type: Type.ARRAY,
                     items: { type: Type.STRING },
+                  },
+                  recallDrills: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        type: {
+                          type: Type.STRING,
+                          enum: [
+                            'multiple_choice',
+                            'predict_output',
+                            'fill_blank',
+                            'bug_fix',
+                          ],
+                        },
+                        difficulty: {
+                          type: Type.STRING,
+                          enum: ['foundation', 'applied', 'mastery'],
+                        },
+                        prompt: { type: Type.STRING },
+                        codeSnippet: { type: Type.STRING },
+                        options: {
+                          type: Type.ARRAY,
+                          items: { type: Type.STRING },
+                        },
+                        answer: { type: Type.STRING },
+                        explanation: { type: Type.STRING },
+                        conceptTag: { type: Type.STRING },
+                      },
+                      required: [
+                        'type',
+                        'difficulty',
+                        'prompt',
+                        'answer',
+                        'explanation',
+                        'conceptTag',
+                      ],
+                    },
                   },
                   challenge: {
                     type: Type.OBJECT,
@@ -197,13 +250,16 @@ export async function generatePersonalizedCurriculum(
                   },
                 },
                 required: [
+                  'unitTitle',
                   'title',
                   'estimatedMinutes',
+                  'xpReward',
                   'summary',
                   'syntaxGrammar',
                   'syntaxTopics',
                   'examples',
                   'commonPitfalls',
+                  'recallDrills',
                   'challenge',
                 ],
               },
@@ -236,15 +292,26 @@ export async function generatePersonalizedCurriculum(
       bridgingStrategy: parsed.bridgingStrategy,
       createdAt: new Date(timestamp).toISOString(),
       redoCount: 0,
-      modules: (parsed.modules ?? []).slice(0, moduleCount).map((mod, idx) => ({
-        ...mod,
-        id: `${trackId}-m${idx + 1}`,
-        order: idx + 1,
-        estimatedMinutes: Math.max(
-          10,
-          Math.min(45, Number(mod.estimatedMinutes) || 20),
-        ),
-      })),
+      modules: (parsed.modules ?? []).slice(0, moduleCount).map((mod, idx) => {
+        const modId = `${trackId}-m${idx + 1}`;
+        return {
+          ...mod,
+          id: modId,
+          order: idx + 1,
+          unitTitle: mod.unitTitle || `Unit ${Math.floor(idx / 2) + 1}`,
+          estimatedMinutes: Math.max(
+            10,
+            Math.min(45, Number(mod.estimatedMinutes) || 20),
+          ),
+          xpReward: Math.max(20, Math.min(80, Number(mod.xpReward) || 35)),
+          recallDrills: Array.isArray(mod.recallDrills)
+            ? mod.recallDrills.slice(0, 4).map((drill, dIdx) => ({
+                ...drill,
+                id: `${modId}-d${dIdx + 1}`,
+              }))
+            : [],
+        };
+      }),
     };
   } catch (error) {
     const mapped = mapGeminiError(error);

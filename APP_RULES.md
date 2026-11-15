@@ -20,11 +20,13 @@ Check this file before every code change, feature addition, or verification run.
 - Apply `.btn-juice` tactile hover/press feedback across interactive buttons and cards, while respecting `prefers-reduced-motion`.
 - Progression feedback (streak flame, daily goal SVG progress ring, module completion, 1–5 star accuracy certificates) should feel rewarding, light, and minimalistic without clutter or forced popups.
 - Maintain **recurry**'s own light aesthetic (`#F7F8FA` canvas, `#FFFFFF` cards, `#0F172A` ink, `#2563EB` accent; `Bricolage Grotesque`, `Plus Jakarta Sans`, `JetBrains Mono`). Never copy third-party brand mascots or color schemes.
+- **Dark Mode Palette (Non-Landing Views Only)**: Never use blue-tinted dark backgrounds or `slate-*` hues (`#0B0F17`, `#111827`, `#0D131F`, `dark:bg-blue-950/*`). Treat dark mode as a mirror of light mode by replacing light whites/greys with pure charcoal/black shades (`#121212` canvas, `#181818` cards/sidebars/headers, `#202020` recessed surfaces, `neutral-*` borders and text), reserving blue strictly for primary CTAs, active selection outlines, and active nav indicators. Landing page (`/`) always stays strictly light mode.
 
-## 4. Code & Typography
+## 4. Code, Headers & Typography
+- Never place descriptive eyebrow/kicker pills or uppercase labels above headers (`HANDLE`, `LANGUAGE`, `SKILL RANK`, `LEARNING FOCUS`, `DAILY GOAL`, `Streaks Engine`, `Programmes Engine`, etc.) and never add `@username` or status pills beside logos or on headers.
 - Disable font ligatures (`font-variant-ligatures: none`) on all code blocks, editors, and `.font-mono` tokens.
 - Use `tabular-nums` on all counters, percentages, ratios, and streak/goal metrics.
-- Enforce single-elevation bordered cards (`border-slate-200`) rather than heavy drop-shadow stacks.
+- Enforce single-elevation bordered cards (`border-slate-200` in light, `dark:border-neutral-800` in dark) rather than heavy drop-shadow stacks.
 
 ## 5. Security, API Keys & Free Quota
 - Gemini requests run exclusively through Express `/api/*` routes using server-side `process.env.GEMINI_API_KEY` (`gemini-4-hydrogen`, `ThinkingLevel.LOW`, `User-Agent: aistudio-build`).

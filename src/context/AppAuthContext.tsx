@@ -44,12 +44,26 @@ import type {
   UserProfile,
 } from '../types/curriculum';
 import {
+  collectDailyActivityCounts,
+  normalizeDailyGoalTarget,
+  toLocalDateKey,
+} from '../engines/streaksEngine';
+import {
+  evaluateProgrammeLockState,
+  type ProgrammeLockSummary,
+} from '../engines/programmesEngine';
+import {
   canGenerateCurriculumToday,
   computeAttemptAccuracy,
   computeTrackAccuracyAndStars,
-  toLocalDateKey,
   type DailyQuotaStatus,
 } from '../utils/curriculumLogic';
+import {
+  buildOfflineWorkspaceSnapshot,
+  clearOfflineWorkspaceSnapshot,
+  loadOfflineWorkspaceSnapshot,
+  saveOfflineWorkspaceSnapshot,
+} from '../utils/offlineCache';
 
 interface OnboardingPayload {
   username: string;
@@ -68,6 +82,8 @@ interface AppAuthContextValue {
   certificates: CertificateRecord[];
   referenceEntries: ReferenceEntry[];
   quota: DailyQuotaStatus;
+  programmeLock: ProgrammeLockSummary;
+  activityCounts: Record<string, number>;
   activeTrack: CurriculumTrack | null;
   activeModuleId: string | null;
   signInWithGoogle: () => Promise<void>;
@@ -77,12 +93,18 @@ interface AppAuthContextValue {
   getIdToken: () => Promise<string>;
   saveOnboardingProfile: (payload: OnboardingPayload) => Promise<void>;
   updateSettingsProfile: (payload: OnboardingPayload) => Promise<void>;
+  updateDailyModuleGoal: (goal: number) => Promise<void>;
   saveGeneratedTrack: (track: CurriculumTrack, todayKey: string) => Promise<void>;
   redoTrack: (trackId: string) => Promise<void>;
   deleteTrack: (trackId: string) => Promise<void>;
   selectTrackAndModule: (trackId: string | null, moduleId: string | null) => Promise<void>;
   toggleModuleComplete: (moduleId: string, forceValue?: boolean) => Promise<void>;
   recordChallengeAttempt: (moduleId: string, passed: boolean) => Promise<void>;
+  recordRecallDrillAttempt: (
+    moduleId: string,
+    drillId: string,
+    correct: boolean,
+  ) => Promise<void>;
   saveModuleDeepDive: (
     trackId: string,
     moduleId: string,
@@ -118,8 +140,18 @@ export function AppAuthProvider({ children }: { children: ReactNode }) {
         setProfileLoaded(true);
         setTracksLoaded(true);
       } else {
-        setProfileLoaded(false);
-        setTracksLoaded(false);
+        const cached = loadOfflineWorkspaceSnapshot(nextUser.uid);
+        if (cached) {
+          setProfile(cached.profile);
+          setTracks(cached.tracks);
+          setCertificates(cached.certificates);
+          setReferenceEntries(cached.referenceEntries);
+          setProfileLoaded(true);
+          setTracksLoaded(true);
+        } else {
+          setProfileLoaded(false);
+          setTracksLoaded(false);
+        }
       }
     });
     return unsub;
@@ -166,6 +198,7 @@ export function AppAuthProvider({ children }: { children: ReactNode }) {
       },
       (error) => {
         setProfileLoaded(true);
+        if (typeof navigator !== 'undefined' && !navigator.onLine) return;
         handleFirestoreError(error, OperationType.GET, profilePath);
       },
     );
@@ -182,6 +215,7 @@ export function AppAuthProvider({ children }: { children: ReactNode }) {
       },
       (error) => {
         setTracksLoaded(true);
+        if (typeof navigator !== 'undefined' && !navigator.onLine) return;
         handleFirestoreError(error, OperationType.LIST, tracksPath);
       },
     );
@@ -196,6 +230,7 @@ export function AppAuthProvider({ children }: { children: ReactNode }) {
         setCertificates(items);
       },
       (error) => {
+        if (typeof navigator !== 'undefined' && !navigator.onLine) return;
         handleFirestoreError(error, OperationType.LIST, certsPath);
       },
     );
@@ -210,6 +245,7 @@ export function AppAuthProvider({ children }: { children: ReactNode }) {
         setReferenceEntries(items);
       },
       (error) => {
+        if (typeof navigator !== 'undefined' && !navigator.onLine) return;
         handleFirestoreError(error, OperationType.LIST, refsPath);
       },
     );
@@ -221,6 +257,19 @@ export function AppAuthProvider({ children }: { children: ReactNode }) {
       unsubRefs();
     };
   }, [authReady, user]);
+
+  useEffect(() => {
+    if (!user || !profileLoaded || !tracksLoaded) return;
+    if (!profile && tracks.length === 0) return;
+    const snapshot = buildOfflineWorkspaceSnapshot({
+      uid: user.uid,
+      profile,
+      tracks,
+      certificates,
+      referenceEntries,
+    });
+    saveOfflineWorkspaceSnapshot(snapshot);
+  }, [user, profileLoaded, tracksLoaded, profile, tracks, certificates, referenceEntries]);
 
   async function signInWithGoogle() {
     await signInWithPopup(auth, googleProvider);
@@ -235,6 +284,7 @@ export function AppAuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signOutUser() {
+    clearOfflineWorkspaceSnapshot();
     await signOut(auth);
   }
 
@@ -290,6 +340,24 @@ export function AppAuthProvider({ children }: { children: ReactNode }) {
 
   async function updateSettingsProfile(payload: OnboardingPayload) {
     return saveOnboardingProfile(payload);
+  }
+
+  async function updateDailyModuleGoal(goal: number) {
+    if (!user) throw new Error('Sign in required.');
+    const uid = user.uid;
+    const safeGoal = normalizeDailyGoalTarget(goal);
+    const path = `users/${uid}`;
+
+    setProfile((prev) => (prev ? { ...prev, dailyModuleGoal: safeGoal } : prev));
+
+    try {
+      await updateDoc(doc(db, 'users', uid), {
+        dailyModuleGoal: safeGoal,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, path);
+    }
   }
 
   async function saveGeneratedTrack(track: CurriculumTrack, todayKey: string) {
@@ -484,13 +552,16 @@ export function AppAuthProvider({ children }: { children: ReactNode }) {
     const nextAttempts = prev.attempts + 1;
     const attemptScore = computeAttemptAccuracy(nextAttempts, passed);
     const nextBest = Math.max(prev.bestAccuracy, attemptScore);
+    const todayKey = toLocalDateKey(new Date());
 
     const nextAccuracy: Record<string, ModuleAccuracyEntry> = {
       ...profile.moduleAccuracy,
       [moduleId]: {
+        ...prev,
         attempts: nextAttempts,
         passed: prev.passed || passed,
         bestAccuracy: nextBest,
+        lastPracticedDate: todayKey,
       },
     };
 
@@ -508,6 +579,54 @@ export function AppAuthProvider({ children }: { children: ReactNode }) {
         activeModuleId: profile.activeModuleId,
         completedModuleIds: nextCompleted,
         moduleCompletedAt: nextCompletedAt,
+        moduleAccuracy: nextAccuracy,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, userPath);
+    }
+  }
+
+  async function recordRecallDrillAttempt(
+    moduleId: string,
+    drillId: string,
+    correct: boolean,
+  ) {
+    if (!user || !profile) return;
+    const uid = user.uid;
+    const prev = profile.moduleAccuracy[moduleId] ?? {
+      attempts: 0,
+      passed: false,
+      bestAccuracy: 0,
+    };
+    const existingDrills = Array.isArray(prev.drillsPassed) ? prev.drillsPassed : [];
+    const nextDrills =
+      correct && !existingDrills.includes(drillId)
+        ? [...existingDrills, drillId]
+        : existingDrills;
+    const nextRecallAttempts = (prev.recallAttempts ?? 0) + 1;
+    const prevXp = prev.xpEarned ?? 0;
+    const gainedXp = correct && !existingDrills.includes(drillId) ? 5 : 0;
+    const todayKey = toLocalDateKey(new Date());
+
+    const nextAccuracy: Record<string, ModuleAccuracyEntry> = {
+      ...profile.moduleAccuracy,
+      [moduleId]: {
+        ...prev,
+        drillsPassed: nextDrills,
+        recallAttempts: nextRecallAttempts,
+        xpEarned: prevXp + gainedXp,
+        lastPracticedDate: todayKey,
+      },
+    };
+
+    const userPath = `users/${uid}`;
+    try {
+      await updateDoc(doc(db, 'users', uid), {
+        activeTrackId: profile.activeTrackId,
+        activeModuleId: profile.activeModuleId,
+        completedModuleIds: profile.completedModuleIds,
+        moduleCompletedAt: profile.moduleCompletedAt,
         moduleAccuracy: nextAccuracy,
         updatedAt: serverTimestamp(),
       });
@@ -612,10 +731,30 @@ export function AppAuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const programmeLock = useMemo(
+    () =>
+      evaluateProgrammeLockState(
+        tracks,
+        profile?.completedModuleIds ?? [],
+        profile?.activeTrackId,
+      ),
+    [tracks, profile?.completedModuleIds, profile?.activeTrackId],
+  );
+
+  const activityCounts = useMemo(() => {
+    const practicedDates = Object.values(profile?.moduleAccuracy ?? {})
+      .map((entry) => entry.lastPracticedDate)
+      .filter((d): d is string => Boolean(d));
+    return collectDailyActivityCounts(profile?.moduleCompletedAt ?? {}, practicedDates);
+  }, [profile?.moduleCompletedAt, profile?.moduleAccuracy]);
+
   const activeTrack = useMemo(
     () =>
-      tracks.find((t) => t.id === profile?.activeTrackId) ?? tracks[0] ?? null,
-    [tracks, profile?.activeTrackId],
+      tracks.find((t) => t.id === programmeLock.activeIncompleteTrackId) ??
+      tracks.find((t) => t.id === profile?.activeTrackId) ??
+      tracks[0] ??
+      null,
+    [tracks, profile?.activeTrackId, programmeLock.activeIncompleteTrackId],
   );
 
   const activeModuleId =
@@ -642,6 +781,8 @@ export function AppAuthProvider({ children }: { children: ReactNode }) {
     certificates,
     referenceEntries,
     quota,
+    programmeLock,
+    activityCounts,
     activeTrack,
     activeModuleId,
     signInWithGoogle,
@@ -651,12 +792,14 @@ export function AppAuthProvider({ children }: { children: ReactNode }) {
     getIdToken,
     saveOnboardingProfile,
     updateSettingsProfile,
+    updateDailyModuleGoal,
     saveGeneratedTrack,
     redoTrack,
     deleteTrack,
     selectTrackAndModule,
     toggleModuleComplete,
     recordChallengeAttempt,
+    recordRecallDrillAttempt,
     saveModuleDeepDive,
     issueTrackCertificate,
     saveReferenceEntry,

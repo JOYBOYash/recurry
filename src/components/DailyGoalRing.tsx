@@ -34,15 +34,15 @@ export function DailyGoalRing({
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="#E2E8F0"
           strokeWidth={strokeWidth}
+          className="stroke-slate-200 dark:stroke-neutral-700"
         />
         <circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke={goal.isGoalMet ? '#059669' : '#2563EB'}
+          stroke={goal.isGoalMet ? '#10B981' : '#2563EB'}
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeDasharray={circumference}
@@ -53,9 +53,9 @@ export function DailyGoalRing({
 
       <span className="absolute inset-0 flex items-center justify-center font-mono text-[11px] font-bold tabular-nums">
         {goal.isGoalMet ? (
-          <Check className="h-4 w-4 text-emerald-600" aria-hidden="true" />
+          <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
         ) : (
-          <span className="text-slate-900">
+          <span className="text-slate-900 dark:text-white">
             {goal.completedToday}/{goal.dailyGoal}
           </span>
         )}

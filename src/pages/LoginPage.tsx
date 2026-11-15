@@ -74,10 +74,10 @@ export function LoginPage() {
           </Link>
         </div>
 
-        <main className="my-auto w-full rounded-3xl border border-white/80 bg-white/95 p-5 shadow-[0_28px_70px_-18px_rgba(15,23,42,0.34)] backdrop-blur-xl sm:p-7">
+        <main className="my-auto w-full rounded-3xl border border-white/80 bg-white/95 p-5 shadow-[0_28px_70px_-18px_rgba(15,23,42,0.34)] backdrop-blur-xl dark:border-neutral-800/90 dark:bg-[#181818]/95 dark:shadow-[0_28px_70px_-18px_rgba(0,0,0,0.75)] sm:p-7">
           <div className="space-y-1.5">
             <BrandLogo size="md" />
-            <h1 className="font-display text-xl font-bold text-slate-900">
+            <h1 className="font-display text-xl font-bold text-slate-900 dark:text-white">
               {mode === 'signin' ? 'Sign in to your workspace' : 'Create your account'}
             </h1>
           </div>
@@ -87,31 +87,31 @@ export function LoginPage() {
               type="button"
               onClick={handleGoogle}
               disabled={submitting}
-              className="btn-juice flex min-h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:border-slate-400 hover:bg-slate-50 disabled:opacity-60"
+              className="btn-juice flex min-h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:border-slate-400 hover:bg-slate-50 disabled:opacity-60 dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-100 dark:hover:border-neutral-600 dark:hover:bg-[#262626]"
             >
               <FcGoogle className="h-5 w-5" aria-hidden="true" />
               <span>Continue with Google</span>
             </button>
 
             <div className="relative flex items-center py-0.5">
-              <div className="flex-grow border-t border-slate-200" />
-              <span className="mx-3 font-mono text-[11px] font-semibold text-slate-400">
+              <div className="flex-grow border-t border-slate-200 dark:border-neutral-800" />
+              <span className="mx-3 font-mono text-[11px] font-semibold text-slate-400 dark:text-neutral-500">
                 OR EMAIL
               </span>
-              <div className="flex-grow border-t border-slate-200" />
+              <div className="flex-grow border-t border-slate-200 dark:border-neutral-800" />
             </div>
 
             <form onSubmit={handleEmailSubmit} className="space-y-3">
               <div>
                 <label
                   htmlFor="login-email"
-                  className="block text-xs font-semibold text-slate-700"
+                  className="block text-xs font-semibold text-slate-700 dark:text-neutral-300"
                 >
                   Email
                 </label>
                 <div className="relative mt-1">
                   <Mail
-                    className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                    className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-neutral-500"
                     aria-hidden="true"
                   />
                   <input
@@ -121,7 +121,7 @@ export function LoginPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@domain.com"
-                    className="min-h-10 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none"
+                    className="min-h-10 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-100 dark:placeholder:text-neutral-500 dark:focus:border-blue-500"
                   />
                 </div>
               </div>
@@ -129,13 +129,13 @@ export function LoginPage() {
               <div>
                 <label
                   htmlFor="login-password"
-                  className="block text-xs font-semibold text-slate-700"
+                  className="block text-xs font-semibold text-slate-700 dark:text-neutral-300"
                 >
                   Password
                 </label>
                 <div className="relative mt-1">
                   <Lock
-                    className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                    className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-neutral-500"
                     aria-hidden="true"
                   />
                   <input
@@ -146,7 +146,7 @@ export function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Minimum 6 characters"
-                    className="min-h-10 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none"
+                    className="min-h-10 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-100 dark:placeholder:text-neutral-500 dark:focus:border-blue-500"
                   />
                 </div>
               </div>
@@ -154,9 +154,9 @@ export function LoginPage() {
               {error && (
                 <div
                   role="alert"
-                  className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-2.5 text-xs text-red-800"
+                  className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-2.5 text-xs text-red-800 dark:border-red-800/80 dark:bg-[#202020] dark:text-red-300"
                 >
-                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" aria-hidden="true" />
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400" aria-hidden="true" />
                   <span>{error}</span>
                 </div>
               )}
@@ -177,7 +177,7 @@ export function LoginPage() {
               </button>
             </form>
 
-            <div className="border-t border-slate-100 pt-3 text-center text-xs text-slate-600">
+            <div className="border-t border-slate-100 pt-3 text-center text-xs text-slate-600 dark:border-neutral-800 dark:text-neutral-400">
               {mode === 'signin' ? (
                 <button
                   type="button"
@@ -185,7 +185,7 @@ export function LoginPage() {
                     setMode('signup');
                     setError(null);
                   }}
-                  className="font-semibold text-blue-600 hover:text-blue-800"
+                  className="font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
                 >
                   New to recurry? Create an account
                 </button>
@@ -196,7 +196,7 @@ export function LoginPage() {
                     setMode('signin');
                     setError(null);
                   }}
-                  className="font-semibold text-blue-600 hover:text-blue-800"
+                  className="font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
                 >
                   Already have an account? Sign in
                 </button>
@@ -205,11 +205,7 @@ export function LoginPage() {
           </div>
         </main>
 
-        <div className="shrink-0 text-center">
-          <span className="inline-block rounded-full border border-white/20 bg-slate-950/35 px-3 py-1 font-mono text-[11px] font-medium text-white/95 backdrop-blur-sm">
-            Firebase Auth · Owner-isolated Firestore
-          </span>
-        </div>
+        <div className="shrink-0" />
       </div>
     </ScenicBackdrop>
   );
