@@ -1,14 +1,12 @@
 import { Loader2 } from 'lucide-react';
 import { Link, Navigate, Outlet } from 'react-router-dom';
-import { toLocalDateKey, useAppAuth } from '../context/AppAuthContext';
+import { useAppAuth } from '../context/AppAuthContext';
 import {
   computeDailyGoalProgress,
   computeLearningStats,
 } from '../utils/curriculumLogic';
 import { resolveProgressRank } from '../utils/rankSystem';
 import { AppNavigation } from './AppNavigation';
-import { DailyStreakWidget } from './DailyStreakWidget';
-import { FriendlyLeaderboard } from './FriendlyLeaderboard';
 import { LanguageIcon } from './LanguageIcon';
 import { RankBadge } from './RankIcon';
 
@@ -24,7 +22,6 @@ export function AppShell() {
     programmeLock,
     activityCounts,
     activeTrack,
-    getIdToken,
     signOutUser,
   } = useAppAuth();
 
@@ -67,8 +64,6 @@ export function AppShell() {
     profile.completedModuleIds,
     profile.skillLevel,
   );
-  const todayKey = toLocalDateKey(new Date());
-  const activeToday = (activityCounts[todayKey] ?? 0) > 0;
 
   return (
     <div className="min-h-screen bg-[#F7F8FA] text-[#0F172A] dark:bg-[#121212] dark:text-neutral-100">
@@ -100,12 +95,12 @@ export function AppShell() {
                   {activeTrack.title}
                 </span>
                 <span className="shrink-0 font-mono text-[11px] text-slate-500 tabular-nums dark:text-neutral-400">
-                  · {rankProgress.progressPercent}%
+                  {rankProgress.progressPercent}%
                 </span>
               </Link>
             ) : (
               <span className="font-display text-sm font-bold text-slate-900 dark:text-white">
-                Learning Dashboard
+                Dashboard
               </span>
             )}
           </div>
@@ -121,20 +116,6 @@ export function AppShell() {
         </header>
 
         <main className="pb-24 lg:pb-12">
-          <DailyStreakWidget
-            currentStreak={stats.currentStreak}
-            longestStreak={stats.longestStreak}
-            activeToday={activeToday}
-          />
-          <FriendlyLeaderboard
-            currentUid={user.uid}
-            username={profile.username}
-            preferredLanguage={activeTrack?.language ?? profile.preferredLanguage}
-            rank={rankProgress.rank}
-            activityCounts={activityCounts}
-            completedModuleIds={profile.completedModuleIds}
-            getIdToken={getIdToken}
-          />
           <div className="animate-view-enter">
             <Outlet />
           </div>

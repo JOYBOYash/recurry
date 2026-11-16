@@ -95,6 +95,12 @@ function mapGeminiError(error: unknown): { status: number; message: string } {
       message: 'AI rate limit reached. Wait a moment and try again.',
     };
   }
+  if (raw.includes('NOT_FOUND') || raw.includes('404')) {
+    return {
+      status: 502,
+      message: 'AI model endpoint unavailable. Please try again shortly.',
+    };
+  }
   return {
     status: 502,
     message: 'AI request failed. Please try again shortly.',

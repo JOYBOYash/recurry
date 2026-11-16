@@ -12,6 +12,9 @@ export type NdjsonStreamEvent<T> =
   | { type: 'error'; error: string };
 
 export function friendlyGatewayError(status: number, fallbackError: string): string {
+  if (status === 404) {
+    return 'Generation endpoint not found (404). Refresh the page or ensure the API server is running.';
+  }
   if (status === 504 || status === 502) {
     return 'Request timed out while waiting for the AI server. Please try again.';
   }

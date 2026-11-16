@@ -430,24 +430,22 @@ export function GeneratingTrackView() {
               </div>
             </div>
 
-            <div className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-slate-50/40 dark:divide-neutral-800 dark:border-neutral-800 dark:bg-[#202020]">
+            <div className="grid gap-3 sm:grid-cols-2">
               {blueprint.moduleSlots.map((slot) => (
                 <div
                   key={slot.order}
-                  className="flex items-center justify-between gap-4 px-4 py-3"
+                  className="flex flex-col justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/40 p-4 dark:border-neutral-800 dark:bg-[#202020]"
                 >
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold text-slate-950 dark:text-white">
-                      {slot.topicFocus}
-                    </div>
-                    <div className="mt-0.5 text-xs capitalize text-slate-500 dark:text-neutral-400">
-                      {slot.difficulty}
-                    </div>
+                  <div className="text-sm font-semibold text-slate-950 dark:text-white">
+                    {slot.topicFocus}
                   </div>
-                  <div className="flex shrink-0 items-center gap-2 font-mono text-xs text-slate-500 tabular-nums dark:text-neutral-400">
-                    <span>{slot.estimatedMinutes}m</span>
-                    <span className="font-semibold text-blue-700 dark:text-blue-400">
-                      +{slot.xpReward + 15} XP
+                  <div className="flex items-center justify-between font-mono text-[11px] text-slate-500 tabular-nums dark:text-neutral-400">
+                    <span className="capitalize">{slot.difficulty}</span>
+                    <span>
+                      {slot.estimatedMinutes}m ·{' '}
+                      <span className="font-semibold text-blue-700 dark:text-blue-400">
+                        +{slot.xpReward + 15} XP
+                      </span>
                     </span>
                   </div>
                 </div>

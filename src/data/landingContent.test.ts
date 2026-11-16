@@ -46,7 +46,7 @@ test('FAQ items and repository architecture modules are concise and non-empty', 
 
 test('index.html includes valid Organization and FAQPage JSON-LD synced with FAQ_ITEMS and OpenGraph tags', () => {
   const html = fs.readFileSync(path.resolve(process.cwd(), 'index.html'), 'utf8');
-  assert.match(html, /rel="icon"[^>]+href="\/assets\/images\/app-logo\.png"/);
+  assert.match(html, /rel="icon"[^>]+href="\/(?:favicon\.ico|icon\.svg|pwa-192x192\.png)"/);
   assert.match(html, /property="og:image"[^>]+og-preview\.jpg/);
   assert.match(html, /name="twitter:card"\s+content="summary_large_image"/);
 

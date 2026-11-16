@@ -34,6 +34,7 @@ import type {
 } from '../types/curriculum';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { checkBalancedDelimiters } from '../utils/curriculumLogic';
+import { extractCoreObjectives } from '../utils/curriculumCards';
 import { parseApiJson } from '../utils/apiResponse';
 import { CodeBlock } from './CodeBlock';
 import { InlineCodeText } from './InlineCodeText';
@@ -414,8 +415,10 @@ export function WorkbenchView({
     submitTutorQuestion(tutorInput);
   }
 
+  const coreObjectives = extractCoreObjectives(activeModule, 4);
+
   return (
-    <div className="mx-auto max-w-4xl space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+    <div className="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <button
@@ -424,7 +427,7 @@ export function WorkbenchView({
             className="btn-juice inline-flex min-h-10 items-center gap-1.5 rounded-xl px-2 text-xs font-semibold text-slate-600 hover:bg-slate-200/60 hover:text-slate-950 dark:text-neutral-300 dark:hover:bg-[#202020] dark:hover:text-white"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            <span>Path</span>
+            <span>Curriculum</span>
           </button>
 
           <div className="flex items-center gap-3">
@@ -433,8 +436,7 @@ export function WorkbenchView({
               <span>{mastery.xpEarned} XP</span>
             </span>
             <span className="font-mono text-xs text-slate-500 tabular-nums dark:text-neutral-400">
-              {String(activeModule.order).padStart(2, '0')} /{' '}
-              {String(activeTrack.modules.length).padStart(2, '0')}
+              {activeModule.order} / {activeTrack.modules.length}
             </span>
             <button
               type="button"
@@ -473,12 +475,12 @@ export function WorkbenchView({
         >
           {(
             [
-              { id: 'learn', label: '1. Concept' },
+              { id: 'learn', label: 'Concept' },
               {
                 id: 'recall',
-                label: `2. Recall (${mastery.passedDrillsCount}/${mastery.totalDrills})`,
+                label: `Recall (${mastery.passedDrillsCount}/${mastery.totalDrills})`,
               },
-              { id: 'practice', label: '3. Challenge' },
+              { id: 'practice', label: 'Challenge' },
               { id: 'tutor', label: 'Tutor' },
             ] as Array<{ id: LessonStep; label: string }>
           ).map((tab) => {
@@ -509,17 +511,11 @@ export function WorkbenchView({
           className="animate-view-enter space-y-8 rounded-2xl border border-slate-200 bg-white p-6 dark:border-neutral-800 dark:bg-[#181818] sm:p-8"
         >
           <div className="flex items-start gap-4 border-b border-slate-100 pb-6 dark:border-neutral-800">
-            <LanguageIcon language={activeTrack.language} className="mt-1 h-7 w-7" />
-            <div className="space-y-2">
-              <h1 className="font-display text-2xl font-bold text-slate-950 dark:text-white sm:text-3xl">
-                {activeModule.title}
-              </h1>
-              <p className="text-sm leading-relaxed text-slate-600 dark:text-neutral-300 sm:text-base">
-                <InlineCodeText text={activeModule.summary} />
-              </p>
+            <LanguageIcon language={activeTrack.language} className="mt-1 h-7 w-7 shrink-0" />
+            <div className="space-y-1.5">
               <div className="flex flex-wrap items-center gap-2 font-mono text-xs text-slate-500 dark:text-neutral-400">
                 <span className="font-semibold text-blue-700 dark:text-blue-400">
-                  {langMeta.standardLabel}
+                  {langMeta.name}
                 </span>
                 <span aria-hidden="true">·</span>
                 <span className="tabular-nums">{activeModule.estimatedMinutes}m</span>
@@ -530,16 +526,42 @@ export function WorkbenchView({
                   </>
                 )}
               </div>
+              <h1 className="font-display text-2xl font-bold text-slate-950 dark:text-white sm:text-3xl">
+                {activeModule.title}
+              </h1>
+              <p className="text-sm leading-relaxed text-slate-600 dark:text-neutral-300">
+                <InlineCodeText text={activeModule.summary} />
+              </p>
             </div>
           </div>
 
-          <div className="space-y-1.5 rounded-xl border border-slate-200 bg-white px-4 py-3.5 dark:border-neutral-800 dark:bg-[#202020]">
-            <span className="block text-xs font-semibold text-slate-500 dark:text-neutral-400">
-              Grammar Pattern
-            </span>
-            <code className="block overflow-x-auto font-mono text-sm font-medium text-slate-950 dark:text-neutral-100">
-              {activeModule.syntaxGrammar}
-            </code>
+          <div className="grid gap-4 md:grid-cols-2">
+            {coreObjectives.length > 0 && (
+              <div className="space-y-2.5 rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-neutral-800 dark:bg-[#202020]">
+                <span className="block text-xs font-semibold text-slate-500 dark:text-neutral-400">
+                  Core Objectives
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {coreObjectives.map((obj) => (
+                    <span
+                      key={obj}
+                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-mono text-xs text-slate-800 dark:border-neutral-700 dark:bg-[#181818] dark:text-neutral-200"
+                    >
+                      {obj}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4 dark:border-neutral-800 dark:bg-[#202020]">
+              <span className="block text-xs font-semibold text-slate-500 dark:text-neutral-400">
+                Grammar
+              </span>
+              <code className="block overflow-x-auto font-mono text-sm font-medium text-slate-950 dark:text-neutral-100">
+                {activeModule.syntaxGrammar}
+              </code>
+            </div>
           </div>
 
           <div className="space-y-8">

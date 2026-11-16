@@ -38,9 +38,21 @@ test('parseJsonSafely extracts server JSON errors and successful payloads cleanl
 });
 
 test('friendlyGatewayError maps proxy status codes cleanly', () => {
+  assert.match(friendlyGatewayError(404, 'Err'), /404/);
   assert.match(friendlyGatewayError(502, 'Err'), /timed out/i);
   assert.match(friendlyGatewayError(401, 'Err'), /session expired/i);
   assert.equal(friendlyGatewayError(400, 'Custom error'), 'Custom error');
+});
+
+test('parseJsonSafely surfaces 404 diagnostics on plain-text 404 body', () => {
+  const result = parseJsonSafely(
+    'The page could not be found',
+    404,
+    'Could not generate curriculum.',
+  );
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 404);
+  assert.match(result.error ?? '', /404/);
 });
 
 test('consumeNdjsonStream processes keepalive pings, stages, and final result across chunk boundaries', async () => {
