@@ -3,6 +3,7 @@ import { ArrowRight, Menu, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { BrandLogo } from '../components/BrandLogo';
 import { FooterWithGithub } from '../components/FooterWithGithub';
+import { GitHubStarDisplay } from '../components/GitHubStarDisplay';
 import { HeroSection } from '../components/HeroSection';
 import { HighlightText } from '../components/HighlightText';
 import { FaqSection } from '../components/LandingFaqAndRepo';
@@ -18,7 +19,6 @@ const NAV_LINKS = [
   { href: '#who', label: "Who It's For" },
   { href: '#how', label: 'Workflow' },
   { href: '#faq', label: 'FAQ' },
-  { href: '#github', label: 'GitHub' },
 ];
 
 export function LandingPage() {
@@ -82,7 +82,7 @@ export function LandingPage() {
         <div
           className={`flex items-center transition-all duration-300 ease-out ${
             isScrolled
-              ? 'h-11 w-auto justify-end bg-transparent p-0 md:h-13 md:w-full md:max-w-[660px] md:justify-between md:gap-5 md:rounded-full md:border md:border-slate-200/90 md:bg-white/88 md:px-4 md:shadow-[0_14px_34px_-10px_rgba(15,23,42,0.18)] md:backdrop-blur-xl'
+              ? 'h-11 w-auto justify-end bg-transparent p-0 md:h-13 md:w-full md:max-w-[700px] md:justify-between md:gap-5 md:rounded-full md:border md:border-slate-200/90 md:bg-white/88 md:px-4 md:shadow-[0_14px_34px_-10px_rgba(15,23,42,0.18)] md:backdrop-blur-xl'
               : 'h-16 w-full justify-between gap-6 rounded-none border-b border-white/20 bg-blue-950/15 px-4 backdrop-blur-md sm:px-8 lg:px-12'
           }`}
         >
@@ -113,7 +113,7 @@ export function LandingPage() {
               <a
                 key={link.href}
                 href={link.href}
-                className={`whitespace-nowrap transition-colors ${
+                className={`whitespace-nowrap shrink-0 transition-colors ${
                   isScrolled ? 'hover:text-slate-950' : 'hover:text-white'
                 }`}
               >
@@ -122,12 +122,17 @@ export function LandingPage() {
             ))}
           </nav>
 
-          {/* Desktop CTAs */}
-          <div className="hidden shrink-0 items-center gap-2 md:flex">
+          {/* Desktop Actions + Clean GitHub Repo Stars */}
+          <div className="hidden shrink-0 items-center gap-3 md:flex">
+            <GitHubStarDisplay
+              repo="JOYBOYash/recurry"
+              tone={isScrolled ? 'dark' : 'light'}
+            />
+
             {user ? (
               <Link
                 to={primaryDestination}
-                className={`btn-juice inline-flex items-center gap-1.5 whitespace-nowrap font-bold transition-all duration-300 ${
+                className={`btn-juice inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 font-bold transition-all duration-300 ${
                   isScrolled
                     ? 'min-h-9 rounded-full bg-blue-600 px-4 py-1.5 text-xs text-white hover:bg-blue-700'
                     : 'min-h-10 rounded-xl border-b-2 border-blue-200 bg-white px-4 py-2 text-xs text-blue-700 hover:bg-blue-50 sm:text-sm'
@@ -140,7 +145,7 @@ export function LandingPage() {
               <>
                 <Link
                   to="/login"
-                  className={`btn-juice inline-flex items-center whitespace-nowrap font-semibold transition-all duration-300 ${
+                  className={`btn-juice inline-flex items-center whitespace-nowrap shrink-0 font-semibold transition-all duration-300 ${
                     isScrolled
                       ? 'min-h-9 rounded-full border border-slate-200 bg-white/90 px-3.5 py-1.5 text-xs text-slate-800 hover:border-slate-300'
                       : 'min-h-10 rounded-xl border border-white/35 bg-white/15 px-4 py-2 text-xs text-white backdrop-blur-xs hover:bg-white/25 sm:text-sm'
@@ -150,7 +155,7 @@ export function LandingPage() {
                 </Link>
                 <Link
                   to="/login"
-                  className={`btn-juice inline-flex items-center gap-1.5 whitespace-nowrap font-bold transition-all duration-300 ${
+                  className={`btn-juice inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 font-bold transition-all duration-300 ${
                     isScrolled
                       ? 'min-h-9 rounded-full bg-blue-600 px-3.5 py-1.5 text-xs text-white hover:bg-blue-700'
                       : 'min-h-10 rounded-xl border-b-2 border-blue-200 bg-white px-4 py-2 text-xs text-blue-700 hover:bg-blue-50 sm:text-sm'
@@ -207,6 +212,11 @@ export function LandingPage() {
                   {link.label}
                 </a>
               ))}
+              <GitHubStarDisplay
+                repo="JOYBOYash/recurry"
+                variant="drawer"
+                onNavigate={() => setMobileNavOpen(false)}
+              />
             </nav>
 
             <div className="mt-3 flex flex-col gap-2.5 border-t border-slate-200 pt-3.5">

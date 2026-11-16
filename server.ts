@@ -7,6 +7,7 @@ import {
   buildNoHmrViteClientModule,
   shouldEnableViteHmr,
 } from './server/viteClientShim.ts';
+import { getGitHubRepoSummary } from './server/githubRepo.ts';
 import {
   readFallbackFirebaseJson,
   resolveServerConfig,
@@ -192,6 +193,17 @@ async function startServer() {
       geminiConfigured: Boolean(config.geminiApiKey),
       firebaseConfigured: Boolean(config.firebaseApiKey),
     });
+  });
+
+  app.get('/api/github/repo', async (req, res) => {
+    const repoOverride =
+      typeof req.query.repo === 'string' ? req.query.repo : undefined;
+    const forceRefresh = req.query.refresh === '1' || req.query.refresh === 'true';
+    const summary = await getGitHubRepoSummary(process.env, {
+      repoOverride,
+      forceRefresh,
+    });
+    res.json(summary);
   });
 
   app.get('/api/quota', async (req, res) => {
