@@ -366,21 +366,23 @@ export function AppAuthProvider({ children }: { children: ReactNode }) {
     const trackPath = `users/${uid}/tracks/${track.id}`;
     const userPath = `users/${uid}`;
 
-    const sanitizedTrack: Record<string, unknown> = {
-      id: track.id,
-      uid,
-      language: track.language,
-      title: track.title.slice(0, 160),
-      subtitle: (track.subtitle ?? '').slice(0, 280),
-      skillLevel: track.skillLevel,
-      learningFocus: track.learningFocus,
-      paceDepth: track.paceDepth,
-      priorBackground: (track.priorBackground ?? '').slice(0, 320),
-      bridgingStrategy: (track.bridgingStrategy ?? '').slice(0, 400),
-      createdAt: track.createdAt,
-      redoCount: 0,
-      modules: track.modules.slice(0, 16),
-    };
+    const sanitizedTrack: Record<string, unknown> = JSON.parse(
+      JSON.stringify({
+        id: track.id,
+        uid,
+        language: track.language,
+        title: track.title.slice(0, 160),
+        subtitle: (track.subtitle ?? '').slice(0, 280),
+        skillLevel: track.skillLevel,
+        learningFocus: track.learningFocus,
+        paceDepth: track.paceDepth,
+        priorBackground: (track.priorBackground ?? '').slice(0, 320),
+        bridgingStrategy: (track.bridgingStrategy ?? '').slice(0, 400),
+        createdAt: track.createdAt,
+        redoCount: 0,
+        modules: (track.modules ?? []).slice(0, 16),
+      }),
+    ) as Record<string, unknown>;
 
     try {
       await setDoc(doc(db, 'users', uid, 'tracks', track.id), sanitizedTrack);

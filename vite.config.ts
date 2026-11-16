@@ -27,8 +27,7 @@ export default defineConfig(() => {
       VitePWA({
         registerType: 'autoUpdate',
         devOptions: {
-          enabled: true,
-          type: 'module',
+          enabled: false,
         },
         includeAssets: [
           'favicon.ico',
@@ -76,6 +75,10 @@ export default defineConfig(() => {
           navigateFallback: '/index.html',
           navigateFallbackDenylist: [/^\/api\//],
           runtimeCaching: [
+            {
+              urlPattern: /^\/api\/.*/i,
+              handler: 'NetworkOnly',
+            },
             {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
               handler: 'StaleWhileRevalidate',

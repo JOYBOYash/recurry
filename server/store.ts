@@ -1,14 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-function getQuotaPath(): string {
-  const customPath = process.env.QUOTA_STORE_PATH?.trim();
-  if (customPath) {
-    return path.resolve(customPath);
-  }
-  return path.resolve(process.cwd(), '.data', 'recurry-quotas.json');
-}
-
 interface QuotaRecord {
   dateKey: string;
   count: number;
@@ -17,23 +9,59 @@ interface QuotaRecord {
 type QuotaMap = Record<string, QuotaRecord>;
 
 let writeQueue: Promise<void> = Promise.resolve();
+let memoryQuotas: QuotaMap = {};
+let activeQuotaPath: string | null = null;
+
+function resolveInitialQuotaPath(): string {
+  if (activeQuotaPath) return activeQuotaPath;
+  const customPath = process.env.QUOTA_STORE_PATH?.trim();
+  if (customPath) {
+    return path.resolve(customPath);
+  }
+  return path.resolve(process.cwd(), '.data', 'recurry-quotas.json');
+}
+
+function getFallbackQuotaPath(): string {
+  return path.resolve('/tmp', 'recurry-quotas.json');
+}
 
 async function readQuotas(): Promise<QuotaMap> {
-  try {
-    const raw = await fs.readFile(getQuotaPath(), 'utf8');
-    const parsed = JSON.parse(raw) as unknown;
-    return parsed && typeof parsed === 'object' ? (parsed as QuotaMap) : {};
-  } catch {
-    return {};
+  for (const candidate of [resolveInitialQuotaPath(), getFallbackQuotaPath()]) {
+    try {
+      const raw = await fs.readFile(candidate, 'utf8');
+      const parsed = JSON.parse(raw) as unknown;
+      if (parsed && typeof parsed === 'object') {
+        memoryQuotas = { ...(parsed as QuotaMap), ...memoryQuotas };
+        return { ...memoryQuotas };
+      }
+    } catch {
+      // Try next path or memory cache
+    }
   }
+  return { ...memoryQuotas };
 }
 
 async function writeQuotas(map: QuotaMap): Promise<void> {
-  const quotaPath = getQuotaPath();
-  await fs.mkdir(path.dirname(quotaPath), { recursive: true });
-  const tempPath = `${quotaPath}.tmp`;
-  await fs.writeFile(tempPath, JSON.stringify(map, null, 2), 'utf8');
-  await fs.rename(tempPath, quotaPath);
+  memoryQuotas = { ...map };
+  const candidates = Array.from(
+    new Set([resolveInitialQuotaPath(), getFallbackQuotaPath()]),
+  );
+
+  for (const quotaPath of candidates) {
+    try {
+      await fs.mkdir(path.dirname(quotaPath), { recursive: true });
+      const tempPath = `${quotaPath}.tmp`;
+      await fs.writeFile(tempPath, JSON.stringify(map, null, 2), 'utf8');
+      await fs.rename(tempPath, quotaPath);
+      activeQuotaPath = quotaPath;
+      return;
+    } catch (err) {
+      console.warn(
+        `[store] Unable to persist quota store at ${quotaPath}:`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
 }
 
 function withQuotaLock<T>(mutator: (map: QuotaMap) => Promise<T> | T): Promise<T> {

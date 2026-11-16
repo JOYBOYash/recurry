@@ -68,9 +68,11 @@ export function GeneratingTrackView() {
   const [stageIndex, setStageIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const autoStartedRef = useRef(false);
+  const profileInitializedRef = useRef(false);
 
   useEffect(() => {
-    if (profile) {
+    if (profile && !profileInitializedRef.current) {
+      profileInitializedRef.current = true;
       setLanguage(profile.preferredLanguage);
       setSkillLevel(profile.skillLevel);
       setLearningFocus(profile.learningFocus);
@@ -169,7 +171,13 @@ export function GeneratingTrackView() {
         );
 
         if (result.error || !result.track) {
-          setError(result.error ?? 'Could not generate curriculum.');
+          const message = result.error ?? 'Could not generate curriculum.';
+          console.error('[generate] Server generation error:', {
+            status: response.status,
+            contentType: response.headers.get('content-type'),
+            message,
+          });
+          setError(message);
           setPhase('plan');
           return;
         }
@@ -179,11 +187,19 @@ export function GeneratingTrackView() {
           replace: true,
         });
       } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : 'Network error while generating curriculum.',
-        );
+        console.error('[generate] Curriculum generation exception:', err);
+        let message = 'Network error while generating curriculum.';
+        if (err instanceof Error) {
+          try {
+            const parsed = JSON.parse(err.message) as { error?: string };
+            message = parsed.error
+              ? `Could not save curriculum: ${parsed.error}`
+              : err.message;
+          } catch {
+            message = err.message;
+          }
+        }
+        setError(message);
         setPhase('plan');
       }
     },

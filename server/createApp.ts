@@ -251,14 +251,24 @@ export function createApiApp(): CreatedApiApp {
   });
 
   app.post('/api/curriculum/generate', async (req, res) => {
+    res.setTimeout?.(120_000);
     const wantsStream =
       req.headers.accept?.includes('application/x-ndjson') ||
       req.query.stream === '1';
     let keepaliveTimer: ReturnType<typeof setInterval> | null = null;
     let streamStarted = false;
 
+    const clearKeepalive = () => {
+      if (keepaliveTimer) {
+        clearInterval(keepaliveTimer);
+        keepaliveTimer = null;
+      }
+    };
+
+    res.on('close', clearKeepalive);
+
     const sendNdjson = (payload: Record<string, unknown>) => {
-      if (!res.writableEnded) {
+      if (!res.writableEnded && !res.destroyed) {
         res.write(`${JSON.stringify(payload)}\n`);
       }
     };
@@ -335,10 +345,7 @@ export function createApiApp(): CreatedApiApp {
         },
       );
 
-      if (keepaliveTimer) {
-        clearInterval(keepaliveTimer);
-        keepaliveTimer = null;
-      }
+      clearKeepalive();
 
       const updatedQuota = await consumeUserDailyQuota(uid, clientDateKey);
       const responsePayload = {
@@ -352,22 +359,24 @@ export function createApiApp(): CreatedApiApp {
 
       if (wantsStream) {
         sendNdjson({ type: 'result', ...responsePayload });
-        res.end();
+        if (!res.writableEnded) {
+          res.end();
+        }
       } else {
         res.json(responsePayload);
       }
     } catch (error) {
-      if (keepaliveTimer) {
-        clearInterval(keepaliveTimer);
-        keepaliveTimer = null;
-      }
+      clearKeepalive();
       if (streamStarted) {
+        console.error('[server] Curriculum generation stream error:', error);
         const message =
           error instanceof GeminiConfigError
             ? error.message
             : 'Unable to generate curriculum.';
         sendNdjson({ type: 'error', error: message });
-        res.end();
+        if (!res.writableEnded) {
+          res.end();
+        }
       } else {
         respondWithSafeError(res, error, 'Unable to generate curriculum.');
       }

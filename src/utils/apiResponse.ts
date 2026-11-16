@@ -55,6 +55,13 @@ export function parseJsonSafely<T>(
     }
     return { ok: true, status, data: parsed };
   } catch {
+    if (status >= 200 && status < 300 && /^</.test(trimmed)) {
+      return {
+        ok: false,
+        status,
+        error: 'API returned an HTML page instead of JSON. Refresh the page or verify the server.',
+      };
+    }
     return {
       ok: false,
       status,
@@ -118,17 +125,23 @@ export async function consumeNdjsonStream<T>(
     }
   };
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let newlineIdx = buffer.indexOf('\n');
-    while (newlineIdx !== -1) {
-      const line = buffer.slice(0, newlineIdx);
-      buffer = buffer.slice(newlineIdx + 1);
-      processLine(line);
-      newlineIdx = buffer.indexOf('\n');
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let newlineIdx = buffer.indexOf('\n');
+      while (newlineIdx !== -1) {
+        const line = buffer.slice(0, newlineIdx);
+        buffer = buffer.slice(newlineIdx + 1);
+        processLine(line);
+        newlineIdx = buffer.indexOf('\n');
+      }
     }
+  } catch {
+    return {
+      error: 'Connection interrupted while generating curriculum. Please try again.',
+    };
   }
 
   const tail = buffer + decoder.decode();
@@ -140,7 +153,12 @@ export async function consumeNdjsonStream<T>(
     return { error: streamError };
   }
   if (!resultTrack) {
-    return { error: friendlyGatewayError(response.status, fallbackError) };
+    return {
+      error:
+        response.status >= 200 && response.status < 300
+          ? 'Generation stream ended before completion. Please try again.'
+          : friendlyGatewayError(response.status, fallbackError),
+    };
   }
   return { track: resultTrack, quota: resultQuota };
 }

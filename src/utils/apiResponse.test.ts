@@ -89,3 +89,34 @@ test('consumeNdjsonStream processes keepalive pings, stages, and final result ac
   assert.equal(result.error, undefined);
   assert.deepEqual(result.track, { id: 'track-1', title: 'JS' });
 });
+
+test('parseJsonSafely detects HTML fallback returned with status 200', () => {
+  const result = parseJsonSafely(
+    '<!doctype html><html><body>SPA</body></html>',
+    200,
+    'Could not generate curriculum.',
+  );
+  assert.equal(result.ok, false);
+  assert.match(result.error ?? '', /HTML page instead of JSON/i);
+});
+
+test('consumeNdjsonStream reports interrupted stream if 200 closes without result', async () => {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(encoder.encode(`${JSON.stringify({ type: 'stage', stage: 1 })}\n`));
+      controller.close();
+    },
+  });
+
+  const response = new Response(stream, {
+    status: 200,
+    headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8' },
+  });
+
+  const result = await consumeNdjsonStream<{ id: string }>(
+    response,
+    'Could not generate curriculum.',
+  );
+  assert.match(result.error ?? '', /ended before completion/i);
+});

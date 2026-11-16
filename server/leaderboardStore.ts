@@ -8,7 +8,14 @@ import {
   clampString,
 } from './security.ts';
 
-function getLeaderboardPath(): string {
+type LeaderboardMap = Record<string, LeaderboardEntry>;
+
+let leaderboardQueue: Promise<void> = Promise.resolve();
+let memoryLeaderboard: LeaderboardMap = {};
+let activeLeaderboardPath: string | null = null;
+
+function resolveInitialLeaderboardPath(): string {
+  if (activeLeaderboardPath) return activeLeaderboardPath;
   const customPath = process.env.LEADERBOARD_STORE_PATH?.trim();
   if (customPath) {
     return path.resolve(customPath);
@@ -16,26 +23,49 @@ function getLeaderboardPath(): string {
   return path.resolve(process.cwd(), '.data', 'recurry-leaderboard.json');
 }
 
-type LeaderboardMap = Record<string, LeaderboardEntry>;
-
-let leaderboardQueue: Promise<void> = Promise.resolve();
+function getFallbackLeaderboardPath(): string {
+  return path.resolve('/tmp', 'recurry-leaderboard.json');
+}
 
 async function readLeaderboardMap(): Promise<LeaderboardMap> {
-  try {
-    const raw = await fs.readFile(getLeaderboardPath(), 'utf8');
-    const parsed = JSON.parse(raw) as unknown;
-    return parsed && typeof parsed === 'object' ? (parsed as LeaderboardMap) : {};
-  } catch {
-    return {};
+  for (const candidate of [
+    resolveInitialLeaderboardPath(),
+    getFallbackLeaderboardPath(),
+  ]) {
+    try {
+      const raw = await fs.readFile(candidate, 'utf8');
+      const parsed = JSON.parse(raw) as unknown;
+      if (parsed && typeof parsed === 'object') {
+        memoryLeaderboard = { ...(parsed as LeaderboardMap), ...memoryLeaderboard };
+        return { ...memoryLeaderboard };
+      }
+    } catch {
+      // Try next path or memory cache
+    }
   }
+  return { ...memoryLeaderboard };
 }
 
 async function writeLeaderboardMap(map: LeaderboardMap): Promise<void> {
-  const storePath = getLeaderboardPath();
-  await fs.mkdir(path.dirname(storePath), { recursive: true });
-  const tempPath = `${storePath}.tmp`;
-  await fs.writeFile(tempPath, JSON.stringify(map, null, 2), 'utf8');
-  await fs.rename(tempPath, storePath);
+  memoryLeaderboard = { ...map };
+  const candidates = Array.from(
+    new Set([resolveInitialLeaderboardPath(), getFallbackLeaderboardPath()]),
+  );
+  for (const storePath of candidates) {
+    try {
+      await fs.mkdir(path.dirname(storePath), { recursive: true });
+      const tempPath = `${storePath}.tmp`;
+      await fs.writeFile(tempPath, JSON.stringify(map, null, 2), 'utf8');
+      await fs.rename(tempPath, storePath);
+      activeLeaderboardPath = storePath;
+      return;
+    } catch (err) {
+      console.warn(
+        `[leaderboardStore] Unable to persist leaderboard at ${storePath}:`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
 }
 
 function withLeaderboardLock<T>(
