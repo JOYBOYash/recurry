@@ -11,6 +11,7 @@ import type { LanguageId, SkillLevel } from '../types/curriculum';
 import { getRankMeta } from '../utils/rankSystem';
 import { LanguageIcon } from './LanguageIcon';
 import { RankIcon } from './RankIcon';
+import { parseApiJson } from '../utils/apiResponse';
 
 interface FriendlyLeaderboardProps {
   currentUid: string;
@@ -65,13 +66,15 @@ export function FriendlyLeaderboard({
           }),
         });
 
-        if (!res.ok) {
-          throw new Error('Could not load leaderboard.');
+        const parsed = await parseApiJson<{ entries?: LeaderboardEntry[] }>(
+          res,
+          'Could not load leaderboard.',
+        );
+        if (!parsed.ok) {
+          throw new Error(parsed.error ?? 'Could not load leaderboard.');
         }
-
-        const data = (await res.json()) as { entries?: LeaderboardEntry[] };
-        if (!cancelled && Array.isArray(data.entries)) {
-          setEntries(data.entries);
+        if (!cancelled && Array.isArray(parsed.data?.entries)) {
+          setEntries(parsed.data.entries);
           setError(null);
         }
       } catch {

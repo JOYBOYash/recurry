@@ -248,6 +248,18 @@ async function startServer() {
   });
 
   app.post('/api/curriculum/generate', async (req, res) => {
+    const wantsStream =
+      req.headers.accept?.includes('application/x-ndjson') ||
+      req.query.stream === '1';
+    let keepaliveTimer: ReturnType<typeof setInterval> | null = null;
+    let streamStarted = false;
+
+    const sendNdjson = (payload: Record<string, unknown>) => {
+      if (!res.writableEnded) {
+        res.write(`${JSON.stringify(payload)}\n`);
+      }
+    };
+
     try {
       const { uid } = await verifyFirebaseUser(req);
       if (!enforceRateLimit(generateUserRateLimiter, `gen:${uid}`, res)) return;
@@ -285,27 +297,77 @@ async function startServer() {
           ? body.paceDepth
           : 'comprehensive';
 
-      const track = await generatePersonalizedCurriculum({
-        language: body.language,
-        skillLevel,
-        learningFocus,
-        paceDepth,
-        priorBackground: clampString(body.priorBackground, 320),
-        focusNotes: clampString(body.focusNotes, 400),
-        plannedTopics: sanitizeStringArray(body.plannedTopics, 8, 120),
-      });
+      let lastStage = 1;
+      if (wantsStream) {
+        streamStarted = true;
+        res.status(200);
+        res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-cache, no-transform');
+        res.setHeader('X-Accel-Buffering', 'no');
+        res.flushHeaders();
+        sendNdjson({ type: 'stage', stage: 1 });
+        keepaliveTimer = setInterval(() => {
+          sendNdjson({ type: 'ping' });
+        }, 3000);
+      }
+
+      const track = await generatePersonalizedCurriculum(
+        {
+          language: body.language,
+          skillLevel,
+          learningFocus,
+          paceDepth,
+          priorBackground: clampString(body.priorBackground, 320),
+          focusNotes: clampString(body.focusNotes, 400),
+          plannedTopics: sanitizeStringArray(body.plannedTopics, 8, 120),
+        },
+        (charsGenerated) => {
+          if (!wantsStream) return;
+          const nextStage =
+            charsGenerated > 2200 ? 3 : charsGenerated > 600 ? 2 : 1;
+          if (nextStage > lastStage) {
+            lastStage = nextStage;
+            sendNdjson({ type: 'stage', stage: nextStage });
+          }
+        },
+      );
+
+      if (keepaliveTimer) {
+        clearInterval(keepaliveTimer);
+        keepaliveTimer = null;
+      }
 
       const updatedQuota = await consumeUserDailyQuota(uid, clientDateKey);
-      res.json({
+      const responsePayload = {
         track: { ...track, uid },
         quota: {
           allowed: updatedQuota.remainingToday > 0,
           remainingToday: updatedQuota.remainingToday,
           todayKey: updatedQuota.dateKey,
         },
-      });
+      };
+
+      if (wantsStream) {
+        sendNdjson({ type: 'result', ...responsePayload });
+        res.end();
+      } else {
+        res.json(responsePayload);
+      }
     } catch (error) {
-      respondWithSafeError(res, error, 'Unable to generate curriculum.');
+      if (keepaliveTimer) {
+        clearInterval(keepaliveTimer);
+        keepaliveTimer = null;
+      }
+      if (streamStarted) {
+        const message =
+          error instanceof GeminiConfigError
+            ? error.message
+            : 'Unable to generate curriculum.';
+        sendNdjson({ type: 'error', error: message });
+        res.end();
+      } else {
+        respondWithSafeError(res, error, 'Unable to generate curriculum.');
+      }
     }
   });
 

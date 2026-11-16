@@ -34,6 +34,7 @@ import type {
 } from '../types/curriculum';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { checkBalancedDelimiters } from '../utils/curriculumLogic';
+import { parseApiJson } from '../utils/apiResponse';
 import { CodeBlock } from './CodeBlock';
 import { InlineCodeText } from './InlineCodeText';
 import { LanguageIcon } from './LanguageIcon';
@@ -284,16 +285,16 @@ export function WorkbenchView({
           userCode: currentCode,
         }),
       });
-      const data = (await response.json()) as {
+      const parsed = await parseApiJson<{
         evaluation?: CodeEvaluationResult;
         error?: string;
-      };
-      if (!response.ok || !data.evaluation) {
-        setEvalError(data.error ?? 'Evaluation failed.');
+      }>(response, 'Evaluation failed.');
+      if (!parsed.ok || !parsed.data?.evaluation) {
+        setEvalError(parsed.error ?? 'Evaluation failed.');
         return;
       }
-      setEvaluation(data.evaluation);
-      onRecordAttempt(activeModule.id, data.evaluation.passed);
+      setEvaluation(parsed.data.evaluation);
+      onRecordAttempt(activeModule.id, parsed.data.evaluation.passed);
     } catch (err) {
       setEvalError(
         err instanceof Error ? err.message : 'Network error during review.',
@@ -328,15 +329,15 @@ export function WorkbenchView({
           priorBackground: activeTrack!.priorBackground,
         }),
       });
-      const data = (await response.json()) as {
+      const parsed = await parseApiJson<{
         deepDive?: DeepDiveExpansion;
         error?: string;
-      };
-      if (!response.ok || !data.deepDive) {
-        setDeepDiveError(data.error ?? 'Could not load deep-dive.');
+      }>(response, 'Could not load deep-dive.');
+      if (!parsed.ok || !parsed.data?.deepDive) {
+        setDeepDiveError(parsed.error ?? 'Could not load deep-dive.');
         return;
       }
-      onSaveDeepDive(activeTrack!.id, activeModule.id, data.deepDive);
+      onSaveDeepDive(activeTrack!.id, activeModule.id, parsed.data.deepDive);
     } catch (err) {
       setDeepDiveError(
         err instanceof Error ? err.message : 'Network error loading deep-dive.',
@@ -381,13 +382,13 @@ export function WorkbenchView({
           history: nextHistory,
         }),
       });
-      const data = (await response.json()) as {
+      const parsed = await parseApiJson<{
         answer?: string;
         codeSnippet?: string;
         error?: string;
-      };
-      if (!response.ok || !data.answer) {
-        setTutorError(data.error ?? 'Tutor request failed.');
+      }>(response, 'Tutor request failed.');
+      if (!parsed.ok || !parsed.data?.answer) {
+        setTutorError(parsed.error ?? 'Tutor request failed.');
         return;
       }
       setTutorMessages((prev) => [
@@ -395,8 +396,8 @@ export function WorkbenchView({
         {
           id: `a-${Date.now()}`,
           role: 'assistant',
-          content: data.answer!,
-          codeSnippet: data.codeSnippet,
+          content: parsed.data!.answer!,
+          codeSnippet: parsed.data!.codeSnippet,
         },
       ]);
     } catch (err) {

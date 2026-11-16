@@ -21,6 +21,7 @@ import {
   filterReferenceEntries,
   validateReferenceTopicInput,
 } from '../utils/curriculumLogic';
+import { parseApiJson } from '../utils/apiResponse';
 import { CodeBlock } from './CodeBlock';
 import { InlineCodeText } from './InlineCodeText';
 import { LanguageIcon } from './LanguageIcon';
@@ -124,15 +125,15 @@ export function ReferenceView({
           languages: genLanguages,
         }),
       });
-      const data = (await response.json()) as {
+      const parsed = await parseApiJson<{
         entry?: ReferenceEntry;
         error?: string;
-      };
-      if (!response.ok || !data.entry) {
-        setGenError(data.error ?? 'Failed to generate comparison.');
+      }>(response, 'Failed to generate comparison.');
+      if (!parsed.ok || !parsed.data?.entry) {
+        setGenError(parsed.error ?? 'Failed to generate comparison.');
         return;
       }
-      onGenerated(data.entry);
+      onGenerated(parsed.data.entry);
       setTopicInput('');
     } catch (err) {
       setGenError(

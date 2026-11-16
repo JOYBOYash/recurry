@@ -3,23 +3,19 @@ import {
   AlertCircle,
   ArrowLeft,
   ArrowRight,
-  Brain,
   Check,
   Clock,
   Code2,
-  Flame,
   Layers,
   Loader2,
   Lock,
   Play,
-  ShieldCheck,
   Terminal,
 } from 'lucide-react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { LanguageIcon } from '../components/LanguageIcon';
 import { RankIcon } from '../components/RankIcon';
 import { toLocalDateKey, useAppAuth } from '../context/AppAuthContext';
-import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import {
   LEARNING_FOCUS_OPTIONS,
   PACE_DEPTHS,
@@ -27,6 +23,7 @@ import {
   SUPPORTED_LANGUAGES,
 } from '../data/languages';
 import { buildProgrammeBlueprint } from '../engines/programmesEngine';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import type {
   CurriculumTrack,
   LanguageId,
@@ -34,6 +31,7 @@ import type {
   PaceDepth,
   SkillLevel,
 } from '../types/curriculum';
+import { consumeNdjsonStream } from '../utils/apiResponse';
 import { validatePersonalizationInput } from '../utils/curriculumLogic';
 
 export function GeneratingTrackView() {
@@ -102,10 +100,11 @@ export function GeneratingTrackView() {
       setError(null);
       if (!isOnline) {
         setError(
-          'Internet connection required to generate a new AI curriculum. Your active curriculum remains available offline.',
+          'Internet connection required to generate a new curriculum.',
         );
         return;
       }
+
       const targetLang = override?.language ?? language;
       const targetSkill = override?.skillLevel ?? skillLevel;
       const targetFocus = override?.learningFocus ?? learningFocus;
@@ -138,9 +137,6 @@ export function GeneratingTrackView() {
 
       setPhase('generating');
       setStageIndex(1);
-      const stageTimer = window.setInterval(() => {
-        setStageIndex((prev) => (prev < 3 ? prev + 1 : prev));
-      }, 2400);
 
       try {
         const token = await getIdToken();
@@ -148,6 +144,7 @@ export function GeneratingTrackView() {
         const response = await fetch('/api/curriculum/generate', {
           method: 'POST',
           headers: {
+            Accept: 'application/x-ndjson, application/json',
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
@@ -163,19 +160,22 @@ export function GeneratingTrackView() {
           }),
         });
 
-        const data = (await response.json()) as {
-          track?: CurriculumTrack;
-          error?: string;
-        };
+        const result = await consumeNdjsonStream<CurriculumTrack>(
+          response,
+          'Could not generate curriculum.',
+          (stage) => {
+            setStageIndex((prev) => Math.max(prev, Math.min(3, stage)));
+          },
+        );
 
-        if (!response.ok || !data.track) {
-          setError(data.error ?? 'Could not generate curriculum.');
+        if (result.error || !result.track) {
+          setError(result.error ?? 'Could not generate curriculum.');
           setPhase('plan');
           return;
         }
 
-        await saveGeneratedTrack(data.track, clientDateKey);
-        navigate(`/app/learn/${encodeURIComponent(data.track.id)}`, {
+        await saveGeneratedTrack(result.track, clientDateKey);
+        navigate(`/app/learn/${encodeURIComponent(result.track.id)}`, {
           replace: true,
         });
       } catch (err) {
@@ -185,11 +185,10 @@ export function GeneratingTrackView() {
             : 'Network error while generating curriculum.',
         );
         setPhase('plan');
-      } finally {
-        window.clearInterval(stageTimer);
       }
     },
     [
+      isOnline,
       language,
       skillLevel,
       learningFocus,
@@ -241,9 +240,9 @@ export function GeneratingTrackView() {
   }
 
   const stages = [
-    'Calibrating difficulty & progression units',
-    'Building active recall drills per module',
-    'Writing syntax challenges & grading criteria',
+    'Sequencing modules',
+    'Writing recall drills',
+    'Finalizing code challenges',
   ];
 
   const handleOpenPlanPreview = () => {
@@ -268,8 +267,8 @@ export function GeneratingTrackView() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F7F8FA] px-4 py-8 sm:px-6 lg:py-12 dark:bg-[#121212]">
-      <div className="mx-auto max-w-3xl space-y-6">
+    <div className="min-h-screen bg-[#F7F8FA] px-4 py-8 sm:px-6 lg:py-10 dark:bg-[#121212]">
+      <div className="mx-auto max-w-2xl space-y-5">
         <div className="flex items-center justify-between">
           <Link
             to="/app/curriculums"
@@ -285,21 +284,19 @@ export function GeneratingTrackView() {
                 : 'text-amber-700 dark:text-amber-400'
             }`}
           >
-            Daily Quota: {quota.remainingToday}/1 left today
+            {quota.remainingToday}/1 left today
           </span>
         </div>
 
         {phase === 'generating' ? (
-          <section className="animate-view-enter rounded-2xl border border-slate-200 bg-white p-8 text-center sm:p-12 dark:border-neutral-800 dark:bg-[#181818]">
+          <section className="animate-view-enter rounded-2xl border border-slate-200 bg-white p-8 text-center sm:p-10 dark:border-neutral-800 dark:bg-[#181818]">
             {(() => {
               const progressPct =
                 stageIndex >= 3 ? 90 : stageIndex === 2 ? 62 : 30;
               return (
                 <div className="mx-auto max-w-sm space-y-2">
                   <div className="flex items-center justify-between font-mono text-[11px] font-semibold text-slate-500 tabular-nums dark:text-neutral-400">
-                    <span>
-                      Step {Math.min(Math.max(stageIndex, 1), 3)} of 3
-                    </span>
+                    <span>Step {Math.min(Math.max(stageIndex, 1), 3)} of 3</span>
                     <span className="text-blue-700 dark:text-blue-400">{progressPct}%</span>
                   </div>
                   <div
@@ -308,7 +305,7 @@ export function GeneratingTrackView() {
                     aria-valuemin={0}
                     aria-valuemax={100}
                     aria-valuenow={progressPct}
-                    className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-neutral-800"
+                    className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-neutral-800"
                   >
                     <div
                       style={{ width: `${progressPct}%` }}
@@ -318,21 +315,22 @@ export function GeneratingTrackView() {
                 </div>
               );
             })()}
+
             <h1 className="mt-6 font-display text-2xl font-bold text-slate-950 dark:text-white">
-              Generating your curriculum once
+              Building {blueprint.languageName} track
             </h1>
             <p className="mt-1 text-xs text-slate-500 dark:text-neutral-400">
-              Creating {blueprint.moduleCount} sequential modules, active recall drills, and coding challenges
+              {blueprint.moduleCount} modules · active recall &amp; code challenges
             </p>
 
-            <div className="mx-auto mt-8 max-w-sm space-y-2.5 text-left">
+            <div className="mx-auto mt-7 max-w-xs space-y-2 text-left">
               {stages.map((label, idx) => {
                 const active = stageIndex >= idx + 1;
                 const done = stageIndex > idx + 1;
                 return (
                   <div
                     key={label}
-                    className={`flex items-center gap-3 rounded-xl border bg-white px-4 py-3 text-xs font-semibold dark:bg-[#202020] ${
+                    className={`flex items-center gap-3 rounded-xl border bg-white px-4 py-2.5 text-xs font-semibold dark:bg-[#202020] ${
                       active
                         ? 'border-blue-600 text-slate-950 dark:border-blue-500 dark:text-white'
                         : 'border-slate-200 text-slate-400 dark:border-neutral-800 dark:text-neutral-500'
@@ -352,150 +350,108 @@ export function GeneratingTrackView() {
             </div>
           </section>
         ) : !programmeLock.canGenerateNewProgramme && programmeLock.activeIncompleteTrackId ? (
-          <section className="animate-view-enter rounded-2xl border-2 border-amber-300 bg-white p-8 text-center sm:p-10 dark:border-amber-600/80 dark:bg-[#181818]">
-            <Lock className="mx-auto h-8 w-8 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+          <section className="animate-view-enter rounded-2xl border border-amber-300 bg-white p-8 text-center sm:p-10 dark:border-amber-600/80 dark:bg-[#181818]">
+            <Lock className="mx-auto h-7 w-7 text-amber-600 dark:text-amber-400" aria-hidden="true" />
             <h1 className="mt-4 font-display text-2xl font-bold text-slate-950 dark:text-white">
-              Finish your active curriculum first
+              Finish your active track first
             </h1>
-            <p className="mx-auto mt-2 max-w-md text-sm text-slate-600 dark:text-neutral-400">
-              One curriculum is active at a time. Complete{' '}
+            <p className="mx-auto mt-1.5 max-w-md text-sm text-slate-600 dark:text-neutral-400">
+              Complete{' '}
               <span className="font-semibold text-slate-900 dark:text-white">
                 {programmeLock.activeIncompleteTrackTitle}
               </span>{' '}
-              ({programmeLock.activeIncompleteProgressPercent}% complete) to unlock your certificate and generate your next programme.
+              ({programmeLock.activeIncompleteProgressPercent}%) to unlock your next curriculum.
             </p>
 
-            <div className="mx-auto mt-6 max-w-xs space-y-1.5">
+            <div className="mx-auto mt-5 max-w-xs space-y-1.5">
               <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-neutral-800">
                 <div
                   className="h-full rounded-full bg-amber-500 transition-all duration-300"
                   style={{ width: `${programmeLock.activeIncompleteProgressPercent}%` }}
                 />
               </div>
-              <div className="font-mono text-xs text-slate-500 tabular-nums dark:text-neutral-400">
-                {programmeLock.activeIncompleteProgressPercent}% mastered
-              </div>
             </div>
 
             <div className="mt-6 flex flex-wrap justify-center gap-3">
               <Link
                 to={`/app/learn/${encodeURIComponent(programmeLock.activeIncompleteTrackId)}`}
-                className="btn-juice inline-flex min-h-12 items-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-6 py-3 text-sm font-bold text-white hover:bg-blue-700"
+                className="btn-juice inline-flex min-h-11 items-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700"
               >
                 <Play className="h-4 w-4" aria-hidden="true" />
-                <span>Resume Active Curriculum</span>
+                <span>Resume Track</span>
               </Link>
               <Link
                 to="/app/curriculums"
-                className="btn-juice inline-flex min-h-12 items-center rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-200 dark:hover:bg-[#262626]"
+                className="btn-juice inline-flex min-h-11 items-center rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-200 dark:hover:bg-[#262626]"
               >
-                <span>View My Curriculums</span>
+                <span>My Curriculums</span>
               </Link>
             </div>
           </section>
         ) : !quota.allowed ? (
           <section className="animate-view-enter rounded-2xl border border-slate-200 bg-white p-8 text-center dark:border-neutral-800 dark:bg-[#181818]">
-            <Clock className="mx-auto h-9 w-9 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+            <Clock className="mx-auto h-8 w-8 text-amber-600 dark:text-amber-400" aria-hidden="true" />
             <h1 className="mt-4 font-display text-2xl font-bold text-slate-950 dark:text-white">
-              Daily generation limit reached
+              Daily limit reached
             </h1>
-            <p className="mx-auto mt-2 max-w-md text-sm text-slate-600 dark:text-neutral-400">
-              You can generate 1 custom curriculum per day for free. Your quota resets tomorrow — continue or redo your existing tracks anytime.
+            <p className="mx-auto mt-1.5 max-w-sm text-sm text-slate-600 dark:text-neutral-400">
+              1 free curriculum per day. Your quota resets tomorrow.
             </p>
             <Link
               to="/app/curriculums"
-              className="btn-juice mt-6 inline-flex min-h-12 items-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-6 py-3 text-sm font-bold text-white hover:bg-blue-700"
+              className="btn-juice mt-6 inline-flex min-h-11 items-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700"
             >
-              <span>Go to My Curriculums</span>
+              <span>My Curriculums</span>
             </Link>
           </section>
         ) : phase === 'plan' ? (
-          <section className="animate-view-enter space-y-6 rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 dark:border-neutral-800 dark:bg-[#181818]">
-            <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 pb-4 dark:border-neutral-800">
-              <div>
-                <h1 className="font-display text-2xl font-bold text-slate-950 dark:text-white">
-                  {blueprint.languageName} Curriculum Plan
-                </h1>
-                <p className="mt-1 text-xs text-slate-600 dark:text-neutral-400">
-                  {blueprint.standardLabel} · {blueprint.skillLabel} · {blueprint.focusLabel}
-                </p>
+          <section className="animate-view-enter space-y-5 rounded-2xl border border-slate-200 bg-white p-6 sm:p-7 dark:border-neutral-800 dark:bg-[#181818]">
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4 dark:border-neutral-800">
+              <div className="flex items-center gap-3">
+                <LanguageIcon language={language} className="h-7 w-7 shrink-0" />
+                <div>
+                  <h1 className="font-display text-xl font-bold text-slate-950 sm:text-2xl dark:text-white">
+                    {blueprint.languageName} Curriculum
+                  </h1>
+                  <p className="text-xs text-slate-500 dark:text-neutral-400">
+                    {blueprint.skillLabel} · {blueprint.focusLabel}
+                  </p>
+                </div>
               </div>
-              <div className="flex items-center gap-3 font-mono text-xs font-semibold text-slate-700 tabular-nums dark:text-neutral-300">
+
+              <div className="flex items-center gap-2 font-mono text-xs font-semibold text-slate-600 tabular-nums dark:text-neutral-400">
                 <span>{blueprint.moduleCount} modules</span>
-                <span className="text-slate-300 dark:text-neutral-700">·</span>
+                <span>·</span>
+                <span>{blueprint.estimatedTotalMinutes}m</span>
+                <span>·</span>
                 <span className="text-blue-700 dark:text-blue-400">
                   {blueprint.totalXpTarget} XP
                 </span>
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 dark:border-neutral-800 dark:bg-[#202020]">
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white">
-                  <Brain className="h-4 w-4 text-blue-600 dark:text-blue-400" aria-hidden="true" />
-                  <span>Learning Engine</span>
-                </div>
-                <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-neutral-400">
-                  {blueprint.pedagogyModel}. {blueprint.calibrationNotes}
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 dark:border-neutral-800 dark:bg-[#202020]">
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white">
-                  <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-                  <span>Progression &amp; Programmes Engines</span>
-                </div>
-                <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-neutral-400">
-                  Modules unlock sequentially after active recall + code check. This track locks other new programmes until 100% completion and certificate issuance.
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 sm:col-span-2 dark:border-neutral-800 dark:bg-[#202020]">
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white">
-                  <Flame className="h-4 w-4 text-amber-500" aria-hidden="true" />
-                  <span>Streaks Engine</span>
-                </div>
-                <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-neutral-400">
-                  Every completed recall session and module updates your active learning calendar ({profile?.dailyModuleGoal ?? 2} modules/day target).
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-2.5">
-              <h2 className="text-xs font-bold text-slate-700 uppercase dark:text-neutral-300">
-                Planned Progression Path ({blueprint.estimatedTotalMinutes}m total)
-              </h2>
-              <div className="space-y-2">
-                {blueprint.moduleSlots.map((slot) => (
-                  <div
-                    key={slot.order}
-                    className="flex flex-col justify-between gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center dark:border-neutral-800 dark:bg-[#202020]"
-                  >
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-slate-500 dark:text-neutral-400">
-                        <span className="font-bold text-blue-700 dark:text-blue-400">
-                          {String(slot.order).padStart(2, '0')}
-                        </span>
-                        <span>·</span>
-                        <span>{slot.unitLabel}</span>
-                        <span>·</span>
-                        <span className="capitalize">{slot.difficulty}</span>
-                      </div>
-                      <div className="mt-0.5 text-sm font-bold text-slate-950 dark:text-white">
-                        {slot.topicFocus}
-                      </div>
-                      <div className="mt-1 text-[11px] text-slate-500 dark:text-neutral-400">
-                        Drills: {slot.drillMix.join(' -> ')}
-                      </div>
+            <div className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-slate-50/40 dark:divide-neutral-800 dark:border-neutral-800 dark:bg-[#202020]">
+              {blueprint.moduleSlots.map((slot) => (
+                <div
+                  key={slot.order}
+                  className="flex items-center justify-between gap-4 px-4 py-3"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-slate-950 dark:text-white">
+                      {slot.topicFocus}
                     </div>
-                    <div className="flex shrink-0 items-center gap-2 font-mono text-[11px] font-semibold text-slate-600 tabular-nums dark:text-neutral-400">
-                      <span>{slot.estimatedMinutes}m</span>
-                      <span>·</span>
-                      <span className="text-blue-700 dark:text-blue-400">+{slot.xpReward + 15} XP</span>
+                    <div className="mt-0.5 text-xs capitalize text-slate-500 dark:text-neutral-400">
+                      {slot.difficulty}
                     </div>
                   </div>
-                ))}
-              </div>
+                  <div className="flex shrink-0 items-center gap-2 font-mono text-xs text-slate-500 tabular-nums dark:text-neutral-400">
+                    <span>{slot.estimatedMinutes}m</span>
+                    <span className="font-semibold text-blue-700 dark:text-blue-400">
+                      +{slot.xpReward + 15} XP
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
 
             {error && (
@@ -508,10 +464,13 @@ export function GeneratingTrackView() {
               </div>
             )}
 
-            <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between dark:border-neutral-800">
+            <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between dark:border-neutral-800">
               <button
                 type="button"
-                onClick={() => setPhase('configure')}
+                onClick={() => {
+                  setError(null);
+                  setPhase('configure');
+                }}
                 className="btn-juice inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-200 dark:hover:bg-[#262626]"
               >
                 <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
@@ -521,25 +480,25 @@ export function GeneratingTrackView() {
               <button
                 type="button"
                 onClick={() => void runGeneration()}
-                className="btn-juice inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-6 py-3 text-sm font-bold text-white hover:bg-blue-700"
+                className="btn-juice inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700"
               >
                 <Layers className="h-4 w-4" aria-hidden="true" />
-                <span>Generate Full Curriculum</span>
+                <span>Generate Curriculum</span>
               </button>
             </div>
           </section>
         ) : (
-          <section className="animate-view-enter space-y-6 rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 dark:border-neutral-800 dark:bg-[#181818]">
+          <section className="animate-view-enter space-y-6 rounded-2xl border border-slate-200 bg-white p-6 sm:p-7 dark:border-neutral-800 dark:bg-[#181818]">
             <div className="border-b border-slate-100 pb-4 dark:border-neutral-800">
               <h1 className="font-display text-2xl font-bold text-slate-950 dark:text-white">
-                Create New Curriculum
+                New Curriculum
               </h1>
-              <p className="mt-1 text-xs text-slate-500 dark:text-neutral-400">
-                Configure your targets, preview the 4-engine curriculum plan, then generate once.
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-neutral-400">
+                One active track at a time.
               </p>
             </div>
 
-            <div className="space-y-2.5">
+            <div className="space-y-2">
               <span className="block text-xs font-semibold text-slate-700 dark:text-neutral-300">
                 Language
               </span>
@@ -582,7 +541,7 @@ export function GeneratingTrackView() {
               </div>
             </div>
 
-            <div className="space-y-2.5">
+            <div className="space-y-2">
               <span className="block text-xs font-semibold text-slate-700 dark:text-neutral-300">
                 Skill Level
               </span>
@@ -702,14 +661,14 @@ export function GeneratingTrackView() {
                   htmlFor="gen-prior-bg"
                   className="block text-xs font-semibold text-slate-700 dark:text-neutral-300"
                 >
-                  Known Languages (Optional)
+                  Known Languages
                 </label>
                 <input
                   id="gen-prior-bg"
                   type="text"
                   value={priorBackground}
                   onChange={(e) => setPriorBackground(e.target.value)}
-                  placeholder="TypeScript, SQL..."
+                  placeholder="Optional · TypeScript, SQL..."
                   className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-100 dark:placeholder:text-neutral-500"
                 />
               </div>
@@ -718,14 +677,14 @@ export function GeneratingTrackView() {
                   htmlFor="gen-focus-notes"
                   className="block text-xs font-semibold text-slate-700 dark:text-neutral-300"
                 >
-                  Custom Topics (Optional)
+                  Custom Topics
                 </label>
                 <input
                   id="gen-focus-notes"
                   type="text"
                   value={focusNotes}
                   onChange={(e) => setFocusNotes(e.target.value)}
-                  placeholder="Window functions, smart pointers..."
+                  placeholder="Optional · Async, closures..."
                   className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-100 dark:placeholder:text-neutral-500"
                 />
               </div>
@@ -741,13 +700,13 @@ export function GeneratingTrackView() {
               </div>
             )}
 
-            <div className="flex justify-end border-t border-slate-100 pt-5 dark:border-neutral-800">
+            <div className="flex justify-end border-t border-slate-100 pt-4 dark:border-neutral-800">
               <button
                 type="button"
                 onClick={handleOpenPlanPreview}
-                className="btn-juice group inline-flex min-h-12 items-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-6 py-3 text-sm font-bold text-white hover:bg-blue-700"
+                className="btn-juice group inline-flex min-h-11 items-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700"
               >
-                <span>Review Curriculum Plan</span>
+                <span>Review Plan</span>
                 <ArrowRight
                   className="h-4 w-4 transition-transform duration-150 group-hover:translate-x-0.5"
                   aria-hidden="true"

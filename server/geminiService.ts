@@ -101,8 +101,20 @@ function mapGeminiError(error: unknown): { status: number; message: string } {
   };
 }
 
+function extractJsonText(raw: string): string {
+  const trimmed = raw.trim();
+  if (trimmed.startsWith('```')) {
+    return trimmed
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```$/, '')
+      .trim();
+  }
+  return trimmed;
+}
+
 export async function generatePersonalizedCurriculum(
   req: PersonalizationRequest,
+  onProgress?: (charsGenerated: number) => void,
 ): Promise<CurriculumTrack> {
   const ai = getGeminiClient();
   const moduleCount = PACE_COUNTS[req.paceDepth] ?? 6;
@@ -127,22 +139,22 @@ export async function generatePersonalizedCurriculum(
     req.focusNotes.trim()
       ? `Specific focus areas: ${req.focusNotes.trim()}`
       : 'Focus: Complete syntax grammar, control structures, data structures, error handling, and real usage.',
-    'Pedagogy & Active Recall Requirements (generate ALL of this in one single pass):',
+    'Pedagogy & Active Recall Requirements (generate ALL of this in one concise pass):',
     '- Group modules into clear units using unitTitle (e.g., "Unit 1 · Core Foundations", "Unit 2 · Structured Patterns", "Unit 3 · Applied Mastery").',
     '- Every code example and starterCode must be syntactically valid, clean, and idiomatic.',
     '- Keep track subtitle under 10 words, bridgingStrategy to 1 crisp sentence, and module summaries to 1 short sentence.',
-    '- Keep example explanation and usageNote to 1 concise sentence each—zero fluff.',
-    '- Include exactly 3 progressive recallDrills per module ordered by difficulty: (1) foundation, (2) applied, (3) mastery.',
+    '- Include 1-2 concise code examples per module (4-8 lines each) with 1-sentence explanation and usageNote.',
+    '- Include exactly 3 concise progressive recallDrills per module ordered by difficulty: (1) foundation, (2) applied, (3) mastery.',
     '- Mix recallDrills types across "multiple_choice", "predict_output", "fill_blank", and "bug_fix" so the learner uses active recall before coding.',
-    '- For "multiple_choice", "predict_output", and "bug_fix", provide 3-4 concise options and set answer to the exact matching option string.',
+    '- For "multiple_choice", "predict_output", and "bug_fix", provide 3 concise options and set answer to the exact matching option string.',
     '- For "fill_blank", include a codeSnippet with "____" and set answer to the exact missing syntax token.',
-    '- Design each practice challenge with clear acceptance criteria and realistic difficulty calibrated to the learner skill level.',
+    '- Design each practice challenge with clear acceptance criteria and concise starterCode/sampleSolution calibrated to the learner skill level.',
   ]
     .filter(Boolean)
     .join('\n');
 
   try {
-    const response = await ai.models.generateContent({
+    const stream = await ai.models.generateContentStream({
       model: MODEL_NAME,
       contents: prompt,
       config: {
@@ -270,7 +282,15 @@ export async function generatePersonalizedCurriculum(
       },
     });
 
-    const parsed = JSON.parse((response.text ?? '{}').trim()) as {
+    let rawText = '';
+    for await (const chunk of stream) {
+      if (chunk.text) {
+        rawText += chunk.text;
+        onProgress?.(rawText.length);
+      }
+    }
+
+    const parsed = JSON.parse(extractJsonText(rawText) || '{}') as {
       title: string;
       subtitle: string;
       bridgingStrategy: string;
