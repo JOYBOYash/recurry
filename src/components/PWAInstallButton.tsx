@@ -1,5 +1,6 @@
 import { Download, Share, X } from 'lucide-react';
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 
 interface PWAInstallButtonProps {
@@ -31,26 +32,28 @@ export function PWAInstallButton({ variant = 'sidebar' }: PWAInstallButtonProps)
           type="button"
           onClick={() => void handleClick()}
           aria-label="Install recurry app for offline access"
-          className="inline-flex items-center gap-1 rounded-xl border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[11px] font-bold text-blue-700 hover:bg-blue-100 dark:border-neutral-700 dark:bg-[#202020] dark:text-blue-400 dark:hover:bg-[#262626]"
+          className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-200/60 hover:text-slate-950 dark:text-neutral-300 dark:hover:bg-[#222222] dark:hover:text-white"
         >
-          <Download className="h-3.5 w-3.5" aria-hidden="true" />
+          <Download className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" aria-hidden="true" />
           <span>Install</span>
         </button>
       ) : (
         <button
           type="button"
           onClick={() => void handleClick()}
-          className="btn-juice flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50/70 px-3 py-2 text-xs font-semibold text-blue-800 hover:border-blue-300 hover:bg-blue-50 dark:border-neutral-700 dark:bg-[#202020] dark:text-blue-400 dark:hover:border-neutral-600 dark:hover:bg-[#262626]"
+          className="btn-juice flex h-9 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:border-slate-300 hover:text-slate-950 dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-200 dark:hover:text-white"
         >
-          <Download className="h-3.5 w-3.5" aria-hidden="true" />
+          <Download className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" aria-hidden="true" />
           <span>Install Offline App</span>
         </button>
       )}
 
-      {showIOSGuide && (
-        <div
-          role="dialog"
-          aria-modal="true"
+      {showIOSGuide &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
           aria-label="Install recurry on iOS"
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-xs dark:bg-black/75"
           onClick={() => setShowIOSGuide(false)}
@@ -89,8 +92,9 @@ export function PWAInstallButton({ variant = 'sidebar' }: PWAInstallButtonProps)
               </li>
             </ol>
           </div>
-        </div>
-      )}
+        </div>,
+          document.body,
+        )}
     </>
   );
 }

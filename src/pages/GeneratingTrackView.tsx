@@ -5,21 +5,21 @@ import {
   ArrowRight,
   Check,
   Clock,
-  Code2,
   Layers,
   Loader2,
   Lock,
   Play,
-  Terminal,
+  RefreshCw,
+  WifiOff,
 } from 'lucide-react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { LanguageIcon } from '../components/LanguageIcon';
-import { RankIcon } from '../components/RankIcon';
+import { SkillLevelFlipCard } from '../components/SkillLevelFlipCard';
 import { toLocalDateKey, useAppAuth } from '../context/AppAuthContext';
 import {
+  LANGUAGE_MAP,
   LEARNING_FOCUS_OPTIONS,
   PACE_DEPTHS,
-  SKILL_LEVELS,
   SUPPORTED_LANGUAGES,
 } from '../data/languages';
 import { buildProgrammeBlueprint } from '../engines/programmesEngine';
@@ -31,8 +31,15 @@ import type {
   PaceDepth,
   SkillLevel,
 } from '../types/curriculum';
+import { checkApiHealth, type ApiHealthStatus } from '../utils/apiHealth';
 import { consumeNdjsonStream } from '../utils/apiResponse';
 import { validatePersonalizationInput } from '../utils/curriculumLogic';
+import {
+  NEW_CURRICULUM_PROGRESS,
+  getNextNewCurriculumStep,
+  getPreviousNewCurriculumStep,
+  type NewCurriculumStepId,
+} from '../utils/uxFlowLogic';
 
 export function GeneratingTrackView() {
   const navigate = useNavigate();
@@ -64,9 +71,15 @@ export function GeneratingTrackView() {
   const [priorBackground, setPriorBackground] = useState('');
   const [focusNotes, setFocusNotes] = useState('');
 
-  const [phase, setPhase] = useState<'configure' | 'plan' | 'generating'>('configure');
+  const [step, setStep] = useState<NewCurriculumStepId>('language');
+  const [direction, setDirection] = useState<1 | -1>(1);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [stageIndex, setStageIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [apiHealth, setApiHealth] = useState<{
+    status: ApiHealthStatus;
+    reason: string | null;
+  }>({ status: 'checking', reason: null });
   const autoStartedRef = useRef(false);
   const profileInitializedRef = useRef(false);
 
@@ -78,6 +91,54 @@ export function GeneratingTrackView() {
       setLearningFocus(profile.learningFocus);
     }
   }, [profile]);
+
+  const verifyEndpointHealth = useCallback(async (): Promise<boolean> => {
+    if (!isOnline) {
+      setApiHealth({
+        status: 'unreachable',
+        reason: 'Offline — connect to the internet to generate a curriculum.',
+      });
+      return false;
+    }
+
+    setApiHealth((prev) => ({
+      status: 'checking',
+      reason: prev.status === 'unreachable' ? prev.reason : null,
+    }));
+
+    const result = await checkApiHealth();
+    if (result.reachable) {
+      setApiHealth({ status: 'reachable', reason: null });
+      return true;
+    }
+
+    setApiHealth({
+      status: 'unreachable',
+      reason: result.reason ?? 'Unable to reach the generation endpoint.',
+    });
+    return false;
+  }, [isOnline]);
+
+  useEffect(() => {
+    if (
+      authReady &&
+      !dataLoading &&
+      user &&
+      profile?.onboardingCompleted &&
+      quota.allowed &&
+      programmeLock.canGenerateNewProgramme
+    ) {
+      void verifyEndpointHealth();
+    }
+  }, [
+    authReady,
+    dataLoading,
+    user,
+    profile?.onboardingCompleted,
+    quota.allowed,
+    programmeLock.canGenerateNewProgramme,
+    verifyEndpointHealth,
+  ]);
 
   const blueprint = useMemo(
     () =>
@@ -101,9 +162,10 @@ export function GeneratingTrackView() {
     }) => {
       setError(null);
       if (!isOnline) {
-        setError(
-          'Internet connection required to generate a new curriculum.',
-        );
+        setApiHealth({
+          status: 'unreachable',
+          reason: 'Offline — connect to the internet to generate a curriculum.',
+        });
         return;
       }
 
@@ -128,6 +190,12 @@ export function GeneratingTrackView() {
         return;
       }
 
+      const endpointReachable = await verifyEndpointHealth();
+      if (!endpointReachable) {
+        setIsGenerating(false);
+        return;
+      }
+
       const activePlan = buildProgrammeBlueprint({
         language: targetLang,
         skillLevel: targetSkill,
@@ -137,7 +205,7 @@ export function GeneratingTrackView() {
         focusNotes,
       });
 
-      setPhase('generating');
+      setIsGenerating(true);
       setStageIndex(1);
 
       try {
@@ -178,7 +246,8 @@ export function GeneratingTrackView() {
             message,
           });
           setError(message);
-          setPhase('plan');
+          setIsGenerating(false);
+          setStep('plan');
           return;
         }
 
@@ -200,7 +269,8 @@ export function GeneratingTrackView() {
           }
         }
         setError(message);
-        setPhase('plan');
+        setIsGenerating(false);
+        setStep('plan');
       }
     },
     [
@@ -211,6 +281,7 @@ export function GeneratingTrackView() {
       paceDepth,
       priorBackground,
       focusNotes,
+      verifyEndpointHealth,
       getIdToken,
       saveGeneratedTrack,
       navigate,
@@ -255,65 +326,123 @@ export function GeneratingTrackView() {
     return <Navigate to="/onboarding" replace />;
   }
 
+  const prevStep = getPreviousNewCurriculumStep(step);
+  const progress = NEW_CURRICULUM_PROGRESS[step];
+  const selectedLangMeta = LANGUAGE_MAP[language];
+
+  function handleNextStep() {
+    setError(null);
+    const next = getNextNewCurriculumStep(step);
+    if (!next) return;
+    if (next === 'plan') {
+      const validation = validatePersonalizationInput({
+        language,
+        skillLevel,
+        learningFocus,
+        paceDepth,
+        priorBackground,
+        focusNotes,
+      });
+      if (!validation.valid) {
+        setError(
+          Object.values(validation.errors).filter(Boolean)[0] ??
+            'Check your curriculum options.',
+        );
+        return;
+      }
+    }
+    setDirection(1);
+    setStep(next);
+  }
+
+  function handleBackStep() {
+    setError(null);
+    if (prevStep) {
+      setDirection(-1);
+      setStep(prevStep);
+    } else {
+      navigate('/app/curriculums');
+    }
+  }
+
   const stages = [
     'Sequencing modules',
     'Writing recall drills',
     'Finalizing code challenges',
   ];
 
-  const handleOpenPlanPreview = () => {
-    setError(null);
-    const validation = validatePersonalizationInput({
-      language,
-      skillLevel,
-      learningFocus,
-      paceDepth,
-      priorBackground,
-      focusNotes,
-    });
-    if (!validation.valid) {
-      setError(
-        Object.values(validation.errors).filter(Boolean)[0] ??
-          'Check your curriculum options.',
-      );
-      return;
-    }
-    setPhase('plan');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  const canConfigure =
+    !isGenerating &&
+    programmeLock.canGenerateNewProgramme &&
+    quota.allowed;
 
   return (
-    <div className="min-h-screen bg-[#F7F8FA] px-4 py-8 sm:px-6 lg:py-10 dark:bg-[#121212]">
-      <div className="mx-auto max-w-2xl space-y-5">
-        <div className="flex items-center justify-between">
-          <Link
-            to="/app/curriculums"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-950 dark:text-neutral-400 dark:hover:text-white"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            <span>My Curriculums</span>
-          </Link>
-          <span
-            className={`font-mono text-xs font-semibold tabular-nums ${
-              quota.allowed
-                ? 'text-emerald-700 dark:text-emerald-400'
-                : 'text-amber-700 dark:text-amber-400'
-            }`}
-          >
-            {quota.remainingToday}/1 left today
-          </span>
-        </div>
+    <div className="flex min-h-[100dvh] w-full flex-col bg-[#F7F8FA] text-[#0F172A] dark:bg-[#121212] dark:text-neutral-100">
+      {/* Unified Step Header (Matches Onboarding Flow) */}
+      <header className="shrink-0 border-b border-slate-200/80 bg-white dark:border-neutral-800 dark:bg-[#181818]">
+        <div className="mx-auto flex h-14 max-w-xl items-center gap-4 px-4 sm:px-6">
+          {isGenerating ? (
+            <Link
+              to="/app/curriculums"
+              aria-label="Back to Curriculums"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-950 dark:text-neutral-400 dark:hover:bg-[#242424] dark:hover:text-white"
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={handleBackStep}
+              aria-label={prevStep ? 'Previous step' : 'Back to Curriculums'}
+              className="inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-950 dark:text-neutral-300 dark:hover:bg-[#242424] dark:hover:text-white"
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            </button>
+          )}
 
-        {phase === 'generating' ? (
-          <section className="animate-view-enter rounded-2xl border border-slate-200 bg-white p-8 text-center sm:p-10 dark:border-neutral-800 dark:bg-[#181818]">
+          {canConfigure ? (
+            <>
+              <div className="flex-1">
+                <div
+                  role="progressbar"
+                  aria-valuenow={progress.percent}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label="New curriculum progress"
+                  className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-neutral-800"
+                >
+                  <div
+                    className="h-full rounded-full bg-blue-600 transition-all duration-300 ease-out"
+                    style={{ width: `${progress.percent}%` }}
+                  />
+                </div>
+              </div>
+
+              <span className="shrink-0 font-mono text-xs text-slate-500 tabular-nums dark:text-neutral-400">
+                {progress.label}
+              </span>
+            </>
+          ) : (
+            <span className="font-display text-sm font-bold text-slate-950 dark:text-white">
+              New Curriculum
+            </span>
+          )}
+        </div>
+      </header>
+
+      <main className="mx-auto flex w-full max-w-xl flex-1 items-center justify-center px-4 py-8 sm:px-6">
+        {isGenerating ? (
+          <section className="animate-view-enter w-full rounded-2xl border border-slate-200/80 bg-white p-8 text-center dark:border-neutral-800 dark:bg-[#181818]">
             {(() => {
               const progressPct =
                 stageIndex >= 3 ? 90 : stageIndex === 2 ? 62 : 30;
               return (
-                <div className="mx-auto max-w-sm space-y-2">
-                  <div className="flex items-center justify-between font-mono text-[11px] font-semibold text-slate-500 tabular-nums dark:text-neutral-400">
-                    <span>Step {Math.min(Math.max(stageIndex, 1), 3)} of 3</span>
-                    <span className="text-blue-700 dark:text-blue-400">{progressPct}%</span>
+                <div className="mx-auto max-w-xs space-y-2">
+                  <div className="flex items-center justify-between font-mono text-[11px] text-slate-500 tabular-nums dark:text-neutral-400">
+                    <span>Building</span>
+                    <span className="text-blue-600 dark:text-blue-400">
+                      {progressPct}%
+                    </span>
                   </div>
                   <div
                     role="progressbar"
@@ -321,7 +450,7 @@ export function GeneratingTrackView() {
                     aria-valuemin={0}
                     aria-valuemax={100}
                     aria-valuenow={progressPct}
-                    className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-neutral-800"
+                    className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-neutral-800"
                   >
                     <div
                       style={{ width: `${progressPct}%` }}
@@ -336,28 +465,34 @@ export function GeneratingTrackView() {
               Building {blueprint.languageName} track
             </h1>
             <p className="mt-1 text-xs text-slate-500 dark:text-neutral-400">
-              {blueprint.moduleCount} modules · active recall &amp; code challenges
+              {blueprint.moduleCount} progressive modules
             </p>
 
-            <div className="mx-auto mt-7 max-w-xs space-y-2 text-left">
+            <div className="mx-auto mt-6 max-w-xs space-y-2 text-left">
               {stages.map((label, idx) => {
                 const active = stageIndex >= idx + 1;
                 const done = stageIndex > idx + 1;
                 return (
                   <div
                     key={label}
-                    className={`flex items-center gap-3 rounded-xl border bg-white px-4 py-2.5 text-xs font-semibold dark:bg-[#202020] ${
+                    className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs font-medium transition-colors ${
                       active
-                        ? 'border-blue-600 text-slate-950 dark:border-blue-500 dark:text-white'
-                        : 'border-slate-200 text-slate-400 dark:border-neutral-800 dark:text-neutral-500'
+                        ? 'bg-slate-100 text-slate-950 dark:bg-[#222222] dark:text-white'
+                        : 'text-slate-400 dark:text-neutral-500'
                     }`}
                   >
                     {done ? (
-                      <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+                      <Check
+                        className="h-4 w-4 text-emerald-600 dark:text-emerald-400"
+                        aria-hidden="true"
+                      />
                     ) : active ? (
-                      <Loader2 className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400" aria-hidden="true" />
+                      <Loader2
+                        className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400"
+                        aria-hidden="true"
+                      />
                     ) : (
-                      <span className="h-2 w-2 rounded-full bg-slate-300 dark:bg-neutral-700" />
+                      <span className="h-1.5 w-1.5 rounded-full bg-slate-300 dark:bg-neutral-700" />
                     )}
                     <span>{label}</span>
                   </div>
@@ -365,371 +500,377 @@ export function GeneratingTrackView() {
               })}
             </div>
           </section>
-        ) : !programmeLock.canGenerateNewProgramme && programmeLock.activeIncompleteTrackId ? (
-          <section className="animate-view-enter rounded-2xl border border-amber-300 bg-white p-8 text-center sm:p-10 dark:border-amber-600/80 dark:bg-[#181818]">
-            <Lock className="mx-auto h-7 w-7 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+        ) : !programmeLock.canGenerateNewProgramme &&
+          programmeLock.activeIncompleteTrackId ? (
+          <section className="animate-view-enter w-full rounded-2xl border border-slate-200/80 bg-white p-8 text-center dark:border-neutral-800 dark:bg-[#181818]">
+            <Lock
+              className="mx-auto h-7 w-7 text-amber-500"
+              aria-hidden="true"
+            />
             <h1 className="mt-4 font-display text-2xl font-bold text-slate-950 dark:text-white">
               Finish your active track first
             </h1>
-            <p className="mx-auto mt-1.5 max-w-md text-sm text-slate-600 dark:text-neutral-400">
+            <p className="mx-auto mt-1.5 max-w-sm text-sm text-slate-600 dark:text-neutral-400">
               Complete{' '}
               <span className="font-semibold text-slate-900 dark:text-white">
                 {programmeLock.activeIncompleteTrackTitle}
               </span>{' '}
-              ({programmeLock.activeIncompleteProgressPercent}%) to unlock your next curriculum.
+              ({programmeLock.activeIncompleteProgressPercent}%) to unlock your
+              next curriculum.
             </p>
 
-            <div className="mx-auto mt-5 max-w-xs space-y-1.5">
-              <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-neutral-800">
-                <div
-                  className="h-full rounded-full bg-amber-500 transition-all duration-300"
-                  style={{ width: `${programmeLock.activeIncompleteProgressPercent}%` }}
-                />
-              </div>
-            </div>
-
-            <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <div className="mt-6 flex justify-center gap-3">
               <Link
                 to={`/app/learn/${encodeURIComponent(programmeLock.activeIncompleteTrackId)}`}
-                className="btn-juice inline-flex min-h-11 items-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700"
+                className="btn-juice inline-flex h-10 items-center gap-2 rounded-lg bg-blue-600 px-5 text-xs font-semibold text-white hover:bg-blue-700"
               >
-                <Play className="h-4 w-4" aria-hidden="true" />
+                <Play className="h-3.5 w-3.5" aria-hidden="true" />
                 <span>Resume Track</span>
               </Link>
               <Link
                 to="/app/curriculums"
-                className="btn-juice inline-flex min-h-11 items-center rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-200 dark:hover:bg-[#262626]"
+                className="inline-flex h-10 items-center rounded-lg px-4 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:text-neutral-300 dark:hover:bg-[#222222]"
               >
-                <span>My Curriculums</span>
+                Curriculums
               </Link>
             </div>
           </section>
         ) : !quota.allowed ? (
-          <section className="animate-view-enter rounded-2xl border border-slate-200 bg-white p-8 text-center dark:border-neutral-800 dark:bg-[#181818]">
-            <Clock className="mx-auto h-8 w-8 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+          <section className="animate-view-enter w-full rounded-2xl border border-slate-200/80 bg-white p-8 text-center dark:border-neutral-800 dark:bg-[#181818]">
+            <Clock
+              className="mx-auto h-7 w-7 text-amber-500"
+              aria-hidden="true"
+            />
             <h1 className="mt-4 font-display text-2xl font-bold text-slate-950 dark:text-white">
               Daily limit reached
             </h1>
-            <p className="mx-auto mt-1.5 max-w-sm text-sm text-slate-600 dark:text-neutral-400">
+            <p className="mx-auto mt-1.5 max-w-xs text-sm text-slate-600 dark:text-neutral-400">
               1 free curriculum per day. Your quota resets tomorrow.
             </p>
             <Link
               to="/app/curriculums"
-              className="btn-juice mt-6 inline-flex min-h-11 items-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700"
+              className="btn-juice mt-6 inline-flex h-10 items-center rounded-lg bg-blue-600 px-5 text-xs font-semibold text-white hover:bg-blue-700"
             >
-              <span>My Curriculums</span>
+              Back to Curriculums
             </Link>
           </section>
-        ) : phase === 'plan' ? (
-          <section className="animate-view-enter space-y-5 rounded-2xl border border-slate-200 bg-white p-6 sm:p-7 dark:border-neutral-800 dark:bg-[#181818]">
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4 dark:border-neutral-800">
-              <div className="flex items-center gap-3">
-                <LanguageIcon language={language} className="h-7 w-7 shrink-0" />
-                <div>
-                  <h1 className="font-display text-xl font-bold text-slate-950 sm:text-2xl dark:text-white">
-                    {blueprint.languageName} Curriculum
+        ) : (
+          <div
+            key={step}
+            className={`w-full ${
+              direction === 1 ? 'animate-step-forward' : 'animate-step-back'
+            }`}
+          >
+            {/* Step 1: Language Dropdown */}
+            {step === 'language' && (
+              <section className="space-y-6 rounded-2xl border border-slate-200/80 bg-white p-6 sm:p-7 dark:border-neutral-800 dark:bg-[#181818]">
+                <div className="space-y-1">
+                  <h1 className="font-display text-2xl font-bold text-slate-950 dark:text-white">
+                    Pick a language
                   </h1>
                   <p className="text-xs text-slate-500 dark:text-neutral-400">
-                    {blueprint.skillLabel} · {blueprint.focusLabel}
+                    Choose what you want to practice next.
                   </p>
                 </div>
-              </div>
 
-              <div className="flex items-center gap-2 font-mono text-xs font-semibold text-slate-600 tabular-nums dark:text-neutral-400">
-                <span>{blueprint.moduleCount} modules</span>
-                <span>·</span>
-                <span>{blueprint.estimatedTotalMinutes}m</span>
-                <span>·</span>
-                <span className="text-blue-700 dark:text-blue-400">
-                  {blueprint.totalXpTarget} XP
-                </span>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              {blueprint.moduleSlots.map((slot) => (
-                <div
-                  key={slot.order}
-                  className="flex flex-col justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/40 p-4 dark:border-neutral-800 dark:bg-[#202020]"
-                >
-                  <div className="text-sm font-semibold text-slate-950 dark:text-white">
-                    {slot.topicFocus}
-                  </div>
-                  <div className="flex items-center justify-between font-mono text-[11px] text-slate-500 tabular-nums dark:text-neutral-400">
-                    <span className="capitalize">{slot.difficulty}</span>
-                    <span>
-                      {slot.estimatedMinutes}m ·{' '}
-                      <span className="font-semibold text-blue-700 dark:text-blue-400">
-                        +{slot.xpReward + 15} XP
-                      </span>
+                <div className="space-y-3">
+                  <div className="relative flex items-center">
+                    <span className="pointer-events-none absolute left-3.5 flex items-center">
+                      <LanguageIcon language={language} className="h-5 w-5" />
                     </span>
+                    <label htmlFor="gen-language-select" className="sr-only">
+                      Programming language
+                    </label>
+                    <select
+                      id="gen-language-select"
+                      value={language}
+                      onChange={(e) => setLanguage(e.target.value as LanguageId)}
+                      className="h-12 w-full cursor-pointer rounded-xl border border-slate-200 bg-white pr-4 pl-11 text-sm font-semibold text-slate-950 focus:border-blue-500 focus:outline-none dark:border-neutral-700 dark:bg-[#141414] dark:text-white"
+                    >
+                      {SUPPORTED_LANGUAGES.map((lang) => (
+                        <option key={lang.id} value={lang.id}>
+                          {lang.name} — {lang.paradigm}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                </div>
-              ))}
-            </div>
 
-            {error && (
-              <div
-                role="alert"
-                className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800 dark:border-red-800/80 dark:bg-[#202020] dark:text-red-300"
-              >
-                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400" aria-hidden="true" />
-                <span>{error}</span>
-              </div>
+                  <p className="text-xs leading-relaxed text-slate-500 dark:text-neutral-400">
+                    {selectedLangMeta.summary}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleNextStep}
+                  className="btn-juice group flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white hover:bg-blue-700"
+                >
+                  <span>Continue</span>
+                  <ArrowRight
+                    className="h-4 w-4 transition-transform duration-150 group-hover:translate-x-0.5"
+                    aria-hidden="true"
+                  />
+                </button>
+              </section>
             )}
 
-            <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between dark:border-neutral-800">
-              <button
-                type="button"
-                onClick={() => {
-                  setError(null);
-                  setPhase('configure');
-                }}
-                className="btn-juice inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-200 dark:hover:bg-[#262626]"
-              >
-                <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>Edit Options</span>
-              </button>
+            {/* Step 2: Cyclic Skill Level Flip Card */}
+            {step === 'level' && (
+              <section className="space-y-6 rounded-2xl border border-slate-200/80 bg-white p-6 sm:p-7 dark:border-neutral-800 dark:bg-[#181818]">
+                <div className="space-y-1 text-center">
+                  <h1 className="font-display text-2xl font-bold text-slate-950 dark:text-white">
+                    Choose your {selectedLangMeta.name} level
+                  </h1>
+                  <p className="text-xs text-slate-500 dark:text-neutral-400">
+                    Flip through tiers to match your pace.
+                  </p>
+                </div>
 
-              <button
-                type="button"
-                onClick={() => void runGeneration()}
-                className="btn-juice inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700"
-              >
-                <Layers className="h-4 w-4" aria-hidden="true" />
-                <span>Generate Curriculum</span>
-              </button>
-            </div>
-          </section>
-        ) : (
-          <section className="animate-view-enter space-y-6 rounded-2xl border border-slate-200 bg-white p-6 sm:p-7 dark:border-neutral-800 dark:bg-[#181818]">
-            <div className="border-b border-slate-100 pb-4 dark:border-neutral-800">
-              <h1 className="font-display text-2xl font-bold text-slate-950 dark:text-white">
-                New Curriculum
-              </h1>
-              <p className="mt-0.5 text-xs text-slate-500 dark:text-neutral-400">
-                One active track at a time.
-              </p>
-            </div>
+                <SkillLevelFlipCard
+                  value={skillLevel}
+                  onChange={setSkillLevel}
+                  languageName={selectedLangMeta.name}
+                />
 
-            <div className="space-y-2">
-              <span className="block text-xs font-semibold text-slate-700 dark:text-neutral-300">
-                Language
-              </span>
-              <div className="grid gap-2.5 sm:grid-cols-3">
-                {SUPPORTED_LANGUAGES.map((lang) => {
-                  const selected = language === lang.id;
-                  return (
-                    <button
-                      key={lang.id}
-                      type="button"
-                      onClick={() => setLanguage(lang.id)}
-                      aria-pressed={selected}
-                      className={`btn-juice group relative flex items-center justify-between gap-2 overflow-hidden rounded-xl border-2 bg-white p-3 text-left dark:bg-[#202020] ${
-                        selected
-                          ? 'border-blue-600 dark:border-blue-500'
-                          : 'border-slate-200 hover:border-slate-300 dark:border-neutral-800 dark:hover:border-neutral-700'
-                      }`}
+                <button
+                  type="button"
+                  onClick={handleNextStep}
+                  className="btn-juice group flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white hover:bg-blue-700"
+                >
+                  <span>Continue</span>
+                  <ArrowRight
+                    className="h-4 w-4 transition-transform duration-150 group-hover:translate-x-0.5"
+                    aria-hidden="true"
+                  />
+                </button>
+              </section>
+            )}
+
+            {/* Step 3: Focus & Depth Dropdowns + Optional Context */}
+            {step === 'focus' && (
+              <section className="space-y-5 rounded-2xl border border-slate-200/80 bg-white p-6 sm:p-7 dark:border-neutral-800 dark:bg-[#181818]">
+                <div className="space-y-1">
+                  <h1 className="font-display text-2xl font-bold text-slate-950 dark:text-white">
+                    Shape your track
+                  </h1>
+                  <p className="text-xs text-slate-500 dark:text-neutral-400">
+                    Pick your focus, length, and any optional topics.
+                  </p>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label
+                      htmlFor="gen-focus-select"
+                      className="block text-xs font-medium text-slate-600 dark:text-neutral-300"
                     >
-                      <div className="relative z-10">
-                        <span className="font-display text-sm font-bold text-slate-950 dark:text-white">
-                          {lang.name}
-                        </span>
-                        <div className="font-mono text-[11px] text-slate-500 dark:text-neutral-400">
-                          {lang.paradigm}
-                        </div>
-                      </div>
-                      <Check
-                        className={`relative z-10 h-4 w-4 ${selected ? 'text-blue-600 dark:text-blue-400' : 'text-transparent'}`}
+                      Focus
+                    </label>
+                    <select
+                      id="gen-focus-select"
+                      value={learningFocus}
+                      onChange={(e) =>
+                        setLearningFocus(e.target.value as LearningFocus)
+                      }
+                      className="mt-1.5 h-11 w-full cursor-pointer rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-medium text-slate-950 focus:border-blue-500 focus:outline-none dark:border-neutral-700 dark:bg-[#141414] dark:text-white"
+                    >
+                      {LEARNING_FOCUS_OPTIONS.map((opt) => (
+                        <option key={opt.id} value={opt.id}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="gen-depth-select"
+                      className="block text-xs font-medium text-slate-600 dark:text-neutral-300"
+                    >
+                      Depth
+                    </label>
+                    <select
+                      id="gen-depth-select"
+                      value={paceDepth}
+                      onChange={(e) => setPaceDepth(e.target.value as PaceDepth)}
+                      className="mt-1.5 h-11 w-full cursor-pointer rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-medium text-slate-950 focus:border-blue-500 focus:outline-none dark:border-neutral-700 dark:bg-[#141414] dark:text-white"
+                    >
+                      {PACE_DEPTHS.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.label} ({p.description})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label
+                      htmlFor="gen-prior-bg"
+                      className="block text-xs font-medium text-slate-600 dark:text-neutral-300"
+                    >
+                      Known Languages
+                    </label>
+                    <input
+                      id="gen-prior-bg"
+                      type="text"
+                      value={priorBackground}
+                      onChange={(e) => setPriorBackground(e.target.value)}
+                      placeholder="Optional"
+                      className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none dark:border-neutral-700 dark:bg-[#141414] dark:text-neutral-100 dark:placeholder:text-neutral-500"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="gen-focus-notes"
+                      className="block text-xs font-medium text-slate-600 dark:text-neutral-300"
+                    >
+                      Custom Topics
+                    </label>
+                    <input
+                      id="gen-focus-notes"
+                      type="text"
+                      value={focusNotes}
+                      onChange={(e) => setFocusNotes(e.target.value)}
+                      placeholder="Optional"
+                      className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none dark:border-neutral-700 dark:bg-[#141414] dark:text-neutral-100 dark:placeholder:text-neutral-500"
+                    />
+                  </div>
+                </div>
+
+                {error && (
+                  <div
+                    role="alert"
+                    className="flex items-start gap-2 text-xs text-red-600 dark:text-red-400"
+                  >
+                    <AlertCircle
+                      className="mt-0.5 h-4 w-4 shrink-0"
+                      aria-hidden="true"
+                    />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleNextStep}
+                  className="btn-juice group flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white hover:bg-blue-700"
+                >
+                  <span>Review Plan</span>
+                  <ArrowRight
+                    className="h-4 w-4 transition-transform duration-150 group-hover:translate-x-0.5"
+                    aria-hidden="true"
+                  />
+                </button>
+              </section>
+            )}
+
+            {/* Step 4: Clean Plan Preview & Generate */}
+            {step === 'plan' && (
+              <section className="space-y-5 rounded-2xl border border-slate-200/80 bg-white p-6 sm:p-7 dark:border-neutral-800 dark:bg-[#181818]">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <LanguageIcon language={language} className="h-6 w-6 shrink-0" />
+                    <div>
+                      <h1 className="font-display text-xl font-bold text-slate-950 dark:text-white">
+                        {blueprint.languageName} Track
+                      </h1>
+                      <p className="text-xs text-slate-500 dark:text-neutral-400">
+                        {blueprint.skillLabel} · {blueprint.focusLabel} ·{' '}
+                        {blueprint.moduleCount} modules
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200/80 dark:divide-neutral-800/80 dark:border-neutral-800">
+                  {blueprint.moduleSlots.map((slot) => (
+                    <li
+                      key={slot.order}
+                      className="flex items-center justify-between gap-3 px-4 py-2.5 text-xs"
+                    >
+                      <span className="font-medium text-slate-900 dark:text-neutral-100">
+                        {slot.topicFocus}
+                      </span>
+                      <span className="shrink-0 font-mono text-[11px] text-slate-400 capitalize dark:text-neutral-500">
+                        {slot.difficulty}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+
+                {(apiHealth.status === 'unreachable' ||
+                  (apiHealth.status === 'checking' &&
+                    apiHealth.reason !== null)) && (
+                  <div
+                    role="status"
+                    data-testid="api-health-status"
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-700 dark:border-neutral-800 dark:bg-[#202020] dark:text-neutral-200"
+                  >
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <WifiOff
+                        className="h-4 w-4 shrink-0 text-amber-500"
                         aria-hidden="true"
                       />
-                      <LanguageIcon
-                        language={lang.id}
-                        className={`pointer-events-none absolute -right-1.5 -bottom-2 h-12 w-12 -rotate-12 ${
-                          selected ? 'opacity-[0.34]' : 'opacity-[0.22]'
-                        }`}
-                      />
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <span className="block text-xs font-semibold text-slate-700 dark:text-neutral-300">
-                Skill Level
-              </span>
-              <div className="grid gap-2 sm:grid-cols-5">
-                {SKILL_LEVELS.map((lvl) => {
-                  const selected = skillLevel === lvl.id;
-                  return (
-                    <button
-                      key={lvl.id}
-                      type="button"
-                      onClick={() => setSkillLevel(lvl.id)}
-                      aria-pressed={selected}
-                      className={`btn-juice relative overflow-hidden rounded-xl border-2 bg-white px-3 py-2.5 text-left dark:bg-[#202020] ${
-                        selected
-                          ? 'border-blue-600 dark:border-blue-500'
-                          : 'border-slate-200 hover:border-slate-300 dark:border-neutral-800 dark:hover:border-neutral-700'
-                      }`}
-                    >
-                      <div className="relative z-10">
-                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-950 dark:text-white">
-                          <RankIcon rank={lvl.id} useRankColor className="h-3.5 w-3.5 shrink-0" />
-                          <span>{lvl.label}</span>
-                        </div>
-                        <div className="text-[11px] text-slate-500 dark:text-neutral-400">{lvl.tag}</div>
-                      </div>
-                      <RankIcon
-                        rank={lvl.id}
-                        className={`pointer-events-none absolute -right-1.5 -bottom-2 h-11 w-11 -rotate-12 ${
-                          selected
-                            ? 'text-blue-600 opacity-[0.14] dark:text-blue-400'
-                            : 'text-slate-400 opacity-[0.12] dark:text-neutral-600'
-                        }`}
-                      />
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <span className="block text-xs font-semibold text-slate-700 dark:text-neutral-300">
-                  Focus
-                </span>
-                <div className="grid gap-2">
-                  {LEARNING_FOCUS_OPTIONS.map((opt) => {
-                    const selected = learningFocus === opt.id;
-                    const CornerIcon = opt.id === 'syntax' ? Code2 : Terminal;
-                    return (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => setLearningFocus(opt.id)}
-                        aria-pressed={selected}
-                        className={`btn-juice relative flex items-center justify-between overflow-hidden rounded-xl border-2 bg-white px-3.5 py-2.5 text-left dark:bg-[#202020] ${
-                          selected
-                            ? 'border-blue-600 dark:border-blue-500'
-                            : 'border-slate-200 hover:border-slate-300 dark:border-neutral-800 dark:hover:border-neutral-700'
-                        }`}
-                      >
-                        <span className="relative z-10 text-xs font-bold text-slate-950 dark:text-white">
-                          {opt.label}
+                      <div className="min-w-0">
+                        <span className="font-semibold">
+                          {apiHealth.status === 'checking'
+                            ? 'Checking generation endpoint...'
+                            : 'Generation endpoint unreachable'}
                         </span>
-                        <Check
-                          className={`relative z-10 h-4 w-4 ${selected ? 'text-blue-600 dark:text-blue-400' : 'text-transparent'}`}
-                          aria-hidden="true"
-                        />
-                        <CornerIcon
-                          aria-hidden="true"
-                          className={`pointer-events-none absolute -right-1.5 -bottom-2 h-11 w-11 -rotate-12 ${
-                            selected
-                              ? 'text-blue-600 opacity-[0.14] dark:text-blue-400'
-                              : 'text-slate-400 opacity-[0.12] dark:text-neutral-600'
-                          }`}
-                        />
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+                        {apiHealth.reason && (
+                          <p className="mt-0.5 text-[11px] text-slate-500 dark:text-neutral-400">
+                            {apiHealth.reason}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={apiHealth.status === 'checking'}
+                      onClick={() => void verifyEndpointHealth()}
+                      className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-semibold text-blue-600 hover:bg-slate-200/60 disabled:opacity-60 dark:text-blue-400 dark:hover:bg-[#2A2A2A]"
+                    >
+                      <RefreshCw
+                        className={`h-3 w-3 ${apiHealth.status === 'checking' ? 'animate-spin' : ''}`}
+                        aria-hidden="true"
+                      />
+                      <span>Retry</span>
+                    </button>
+                  </div>
+                )}
 
-              <div className="space-y-2">
-                <span className="block text-xs font-semibold text-slate-700 dark:text-neutral-300">
-                  Depth
-                </span>
-                <div className="grid grid-cols-3 gap-2">
-                  {PACE_DEPTHS.map((p) => {
-                    const selected = paceDepth === p.id;
-                    return (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => setPaceDepth(p.id)}
-                        aria-pressed={selected}
-                        className={`btn-juice rounded-xl border-2 bg-white p-2.5 text-left dark:bg-[#202020] ${
-                          selected
-                            ? 'border-blue-600 dark:border-blue-500'
-                            : 'border-slate-200 hover:border-slate-300 dark:border-neutral-800 dark:hover:border-neutral-700'
-                        }`}
-                      >
-                        <div className="text-xs font-bold text-slate-950 dark:text-white">
-                          {p.label}
-                        </div>
-                        <div className="font-mono text-[11px] text-blue-700 dark:text-blue-400">
-                          {p.description}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
+                {error && (
+                  <div
+                    role="alert"
+                    className="flex items-start gap-2 text-xs text-red-600 dark:text-red-400"
+                  >
+                    <AlertCircle
+                      className="mt-0.5 h-4 w-4 shrink-0"
+                      aria-hidden="true"
+                    />
+                    <span>{error}</span>
+                  </div>
+                )}
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label
-                  htmlFor="gen-prior-bg"
-                  className="block text-xs font-semibold text-slate-700 dark:text-neutral-300"
+                <button
+                  type="button"
+                  disabled={
+                    apiHealth.status === 'unreachable' ||
+                    (apiHealth.status === 'checking' && apiHealth.reason !== null)
+                  }
+                  onClick={() => void runGeneration()}
+                  className="btn-juice flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Known Languages
-                </label>
-                <input
-                  id="gen-prior-bg"
-                  type="text"
-                  value={priorBackground}
-                  onChange={(e) => setPriorBackground(e.target.value)}
-                  placeholder="Optional · TypeScript, SQL..."
-                  className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-100 dark:placeholder:text-neutral-500"
-                />
-              </div>
-              <div>
-                <label
-                  htmlFor="gen-focus-notes"
-                  className="block text-xs font-semibold text-slate-700 dark:text-neutral-300"
-                >
-                  Custom Topics
-                </label>
-                <input
-                  id="gen-focus-notes"
-                  type="text"
-                  value={focusNotes}
-                  onChange={(e) => setFocusNotes(e.target.value)}
-                  placeholder="Optional · Async, closures..."
-                  className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-100 dark:placeholder:text-neutral-500"
-                />
-              </div>
-            </div>
-
-            {error && (
-              <div
-                role="alert"
-                className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800 dark:border-red-800/80 dark:bg-[#202020] dark:text-red-300"
-              >
-                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400" aria-hidden="true" />
-                <span>{error}</span>
-              </div>
+                  <Layers className="h-4 w-4" aria-hidden="true" />
+                  <span>Generate Curriculum</span>
+                </button>
+              </section>
             )}
-
-            <div className="flex justify-end border-t border-slate-100 pt-4 dark:border-neutral-800">
-              <button
-                type="button"
-                onClick={handleOpenPlanPreview}
-                className="btn-juice group inline-flex min-h-11 items-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700"
-              >
-                <span>Review Plan</span>
-                <ArrowRight
-                  className="h-4 w-4 transition-transform duration-150 group-hover:translate-x-0.5"
-                  aria-hidden="true"
-                />
-              </button>
-            </div>
-          </section>
+          </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }

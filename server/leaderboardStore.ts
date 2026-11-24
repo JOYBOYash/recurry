@@ -6,6 +6,7 @@ import {
   ALLOWED_LANGUAGES,
   ALLOWED_SKILL_LEVELS,
   clampString,
+  hashOpaqueUserId,
 } from './security.ts';
 
 type LeaderboardMap = Record<string, LeaderboardEntry>;
@@ -98,6 +99,7 @@ export interface SyncLeaderboardInput {
   currentStreak?: unknown;
   weeklyModulesCompleted?: unknown;
   totalModulesCompleted?: unknown;
+  completedCurriculaCount?: unknown;
 }
 
 export function normalizeLeaderboardEntry(
@@ -120,6 +122,13 @@ export function normalizeLeaderboardEntry(
       ? (input.rank as SkillLevel)
       : 'noob';
 
+  const totalModulesCompleted = clampCount(input.totalModulesCompleted, 5000);
+  const weeklyModulesCompleted = Math.min(
+    totalModulesCompleted,
+    clampCount(input.weeklyModulesCompleted, 500),
+  );
+  const completedCurriculaCount = clampCount(input.completedCurriculaCount, 500);
+
   return {
     uid,
     username: cleanedName,
@@ -127,10 +136,22 @@ export function normalizeLeaderboardEntry(
     rank,
     weeklyActiveDays: clampCount(input.weeklyActiveDays, 7),
     currentStreak: clampCount(input.currentStreak, 3650),
-    weeklyModulesCompleted: clampCount(input.weeklyModulesCompleted, 500),
-    totalModulesCompleted: clampCount(input.totalModulesCompleted, 5000),
+    weeklyModulesCompleted,
+    totalModulesCompleted,
+    completedCurriculaCount,
     updatedAt: new Date().toISOString(),
   };
+}
+
+export function maskLeaderboardEntriesForViewer(
+  entries: LeaderboardEntry[],
+  viewerUid: string,
+): LeaderboardEntry[] {
+  return entries.map((entry) =>
+    entry.uid === viewerUid
+      ? entry
+      : { ...entry, uid: hashOpaqueUserId(entry.uid) },
+  );
 }
 
 export async function listLeaderboardEntries(
@@ -150,6 +171,8 @@ export async function listLeaderboardEntries(
     .slice(0, Math.max(1, Math.min(100, limit)));
 }
 
+const MAX_LEADERBOARD_ENTRIES = 1000;
+
 export function upsertLeaderboardEntry(
   uid: string,
   input: SyncLeaderboardInput,
@@ -157,6 +180,15 @@ export function upsertLeaderboardEntry(
   return withLeaderboardLock((map) => {
     const entry = normalizeLeaderboardEntry(uid, input);
     map[uid] = entry;
+    const keys = Object.keys(map);
+    if (keys.length > MAX_LEADERBOARD_ENTRIES) {
+      const oldest = Object.values(map)
+        .filter((item) => item.uid !== uid)
+        .sort((a, b) => (a.updatedAt ?? '').localeCompare(b.updatedAt ?? ''));
+      for (let i = 0; i < keys.length - MAX_LEADERBOARD_ENTRIES && i < oldest.length; i += 1) {
+        delete map[oldest[i].uid];
+      }
+    }
     return entry;
   });
 }

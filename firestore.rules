@@ -1,0 +1,320 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_-]+$');
+    }
+
+    function isValidLanguage(lang) {
+      return lang in ['sql', 'java', 'cpp', 'python', 'javascript', 'ruby'];
+    }
+
+    function isValidSkillLevel(level) {
+      return level in ['noob', 'intern', 'expert', 'master', 'legend'];
+    }
+
+    function isValidLearningFocus(focus) {
+      return focus in ['syntax', 'problem_solving'];
+    }
+
+    function isValidAlgoConcept(concept) {
+      return concept in [
+        'foundations_io',
+        'control_flow',
+        'functions_scope',
+        'arrays_strings',
+        'hash_maps',
+        'two_pointers',
+        'recursion_trees',
+        'sorting_searching',
+        'dynamic_programming',
+        'queries_data'
+      ];
+    }
+
+    function isValidAlgoDifficulty(diff) {
+      return diff in ['foundation', 'intermediate', 'advanced'];
+    }
+
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasOnly([
+        'uid',
+        'username',
+        'dailyModuleGoal',
+        'onboardingCompleted',
+        'preferredLanguage',
+        'skillLevel',
+        'learningFocus',
+        'lastGeneratedDate',
+        'dailyGenerationCount',
+        'activeTrackId',
+        'activeModuleId',
+        'completedModuleIds',
+        'moduleCompletedAt',
+        'moduleAccuracy',
+        'createdAt',
+        'updatedAt'
+      ])
+      && data.uid == userId
+      && data.username is string && data.username.size() >= 1 && data.username.size() <= 40
+      && data.dailyModuleGoal is int && data.dailyModuleGoal >= 1 && data.dailyModuleGoal <= 10
+      && data.onboardingCompleted is bool
+      && isValidLanguage(data.preferredLanguage)
+      && isValidSkillLevel(data.skillLevel)
+      && isValidLearningFocus(data.learningFocus)
+      && data.lastGeneratedDate is string && data.lastGeneratedDate.size() <= 10
+      && data.dailyGenerationCount is int && data.dailyGenerationCount >= 0 && data.dailyGenerationCount <= 1
+      && (data.activeTrackId == null || (data.activeTrackId is string && data.activeTrackId.size() <= 128))
+      && (data.activeModuleId == null || (data.activeModuleId is string && data.activeModuleId.size() <= 128))
+      && data.completedModuleIds is list && data.completedModuleIds.size() <= 500
+      && data.moduleCompletedAt is map
+      && data.moduleAccuracy is map;
+    }
+
+    function isValidTrack(data, userId, trackId) {
+      return data.keys().hasOnly([
+        'id',
+        'uid',
+        'language',
+        'title',
+        'subtitle',
+        'skillLevel',
+        'learningFocus',
+        'paceDepth',
+        'priorBackground',
+        'bridgingStrategy',
+        'createdAt',
+        'redoCount',
+        'modules'
+      ])
+      && data.id == trackId
+      && data.uid == userId
+      && isValidLanguage(data.language)
+      && data.title is string && data.title.size() >= 1 && data.title.size() <= 160
+      && data.subtitle is string && data.subtitle.size() <= 280
+      && isValidSkillLevel(data.skillLevel)
+      && isValidLearningFocus(data.learningFocus)
+      && data.paceDepth in ['essentials', 'comprehensive', 'complete']
+      && data.priorBackground is string && data.priorBackground.size() <= 320
+      && data.bridgingStrategy is string && data.bridgingStrategy.size() <= 400
+      && data.createdAt is string && data.createdAt.size() <= 40
+      && data.redoCount is int && data.redoCount >= 0 && data.redoCount <= 100
+      && data.modules is list && data.modules.size() >= 1 && data.modules.size() <= 16;
+    }
+
+    function isValidCertificate(data, userId, certId) {
+      return data.keys().hasOnly([
+        'id',
+        'uid',
+        'trackId',
+        'trackTitle',
+        'language',
+        'username',
+        'accuracyPercent',
+        'stars',
+        'completedModulesCount',
+        'certificateCode',
+        'issuedAt'
+      ])
+      && data.id == certId
+      && data.uid == userId
+      && data.trackId is string && data.trackId.size() >= 1 && data.trackId.size() <= 128
+      && data.trackTitle is string && data.trackTitle.size() >= 1 && data.trackTitle.size() <= 160
+      && isValidLanguage(data.language)
+      && data.username is string && data.username.size() >= 1 && data.username.size() <= 40
+      && data.accuracyPercent is int && data.accuracyPercent >= 0 && data.accuracyPercent <= 100
+      && data.stars is int && data.stars >= 1 && data.stars <= 5
+      && data.completedModulesCount is int && data.completedModulesCount >= 1 && data.completedModulesCount <= 16
+      && data.certificateCode is string && data.certificateCode.size() >= 4 && data.certificateCode.size() <= 40
+      && data.issuedAt is string && data.issuedAt.size() <= 40;
+    }
+
+    function isValidReference(data, userId, entryId) {
+      return data.keys().hasOnly([
+        'id',
+        'uid',
+        'category',
+        'concept',
+        'description',
+        'createdAt',
+        'snippets'
+      ])
+      && data.id == entryId
+      && data.uid == userId
+      && data.category is string && data.category.size() >= 1 && data.category.size() <= 60
+      && data.concept is string && data.concept.size() >= 1 && data.concept.size() <= 140
+      && data.description is string && data.description.size() <= 400
+      && data.createdAt is string && data.createdAt.size() <= 40
+      && data.snippets is map;
+    }
+
+    function isValidAlgoBlueprint(data, problemId) {
+      return data.keys().hasOnly([
+        'id',
+        'fingerprint',
+        'title',
+        'problemSummary',
+        'canonicalPrompt',
+        'conceptCategory',
+        'difficulty',
+        'timeComplexity',
+        'spaceComplexity',
+        'edgeCases',
+        'steps',
+        'availableLanguages',
+        'createdByUid',
+        'createdAt'
+      ])
+      && data.id == problemId
+      && data.fingerprint is string && data.fingerprint.size() >= 8 && data.fingerprint.size() <= 64
+      && data.title is string && data.title.size() >= 2 && data.title.size() <= 140
+      && data.problemSummary is string && data.problemSummary.size() >= 4 && data.problemSummary.size() <= 400
+      && data.canonicalPrompt is string && data.canonicalPrompt.size() >= 10 && data.canonicalPrompt.size() <= 4000
+      && isValidAlgoConcept(data.conceptCategory)
+      && isValidAlgoDifficulty(data.difficulty)
+      && data.timeComplexity is string && data.timeComplexity.size() >= 1 && data.timeComplexity.size() <= 48
+      && data.spaceComplexity is string && data.spaceComplexity.size() >= 1 && data.spaceComplexity.size() <= 48
+      && data.edgeCases is list && data.edgeCases.size() <= 8
+      && data.steps is list && data.steps.size() >= 3 && data.steps.size() <= 12
+      && data.availableLanguages is list && data.availableLanguages.size() >= 1 && data.availableLanguages.size() <= 6
+      && data.createdByUid is string && data.createdByUid.size() >= 1 && data.createdByUid.size() <= 128
+      && data.createdAt is string && data.createdAt.size() <= 40;
+    }
+
+    function isValidAlgoAdapter(data, problemId, languageId) {
+      return data.keys().hasOnly([
+        'problemId',
+        'language',
+        'setupNote',
+        'stepHints',
+        'createdAt'
+      ])
+      && data.problemId == problemId
+      && data.language == languageId
+      && isValidLanguage(languageId)
+      && data.setupNote is string && data.setupNote.size() >= 2 && data.setupNote.size() <= 240
+      && data.stepHints is list && data.stepHints.size() >= 3 && data.stepHints.size() <= 12
+      && data.createdAt is string && data.createdAt.size() <= 40;
+    }
+
+    function isValidAlgoProgress(data, userId, problemId) {
+      return data.keys().hasOnly([
+        'problemId',
+        'uid',
+        'activeLanguage',
+        'completedStepIds',
+        'updatedAt',
+        'completedAt'
+      ])
+      && data.problemId == problemId
+      && data.uid == userId
+      && isValidLanguage(data.activeLanguage)
+      && data.completedStepIds is list && data.completedStepIds.size() <= 20
+      && data.updatedAt is string && data.updatedAt.size() <= 40
+      && (data.completedAt == null || (data.completedAt is string && data.completedAt.size() <= 40));
+    }
+
+    // ===============================================================
+    // User-Scoped Collections
+    // ===============================================================
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId)
+        && isValidUserProfile(request.resource.data, userId)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if isOwner(userId)
+        && isValidUserProfile(request.resource.data, userId)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+
+      match /tracks/{trackId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId)
+          && isValidId(trackId)
+          && isValidTrack(request.resource.data, userId, trackId);
+        allow update: if isOwner(userId)
+          && isValidId(trackId)
+          && isValidTrack(request.resource.data, userId, trackId)
+          && request.resource.data.id == resource.data.id
+          && request.resource.data.uid == resource.data.uid
+          && request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if isOwner(userId);
+      }
+
+      match /certificates/{certId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId)
+          && isValidId(certId)
+          && isValidCertificate(request.resource.data, userId, certId);
+        allow update, delete: if false;
+      }
+
+      match /references/{entryId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId)
+          && isValidId(entryId)
+          && isValidReference(request.resource.data, userId, entryId);
+        allow update: if false;
+        allow delete: if isOwner(userId);
+      }
+
+      match /algoProgress/{problemId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && isValidId(problemId)
+          && isValidAlgoProgress(request.resource.data, userId, problemId);
+        allow delete: if isOwner(userId);
+      }
+    }
+
+    // ===============================================================
+    // Shared Algo Mode Library (Canonical Blueprints + Cached Adapters)
+    // ===============================================================
+    match /algoProblems/{problemId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated()
+        && isValidId(problemId)
+        && isValidAlgoBlueprint(request.resource.data, problemId)
+        && request.resource.data.createdByUid == request.auth.uid;
+      // Only allow appending newly cached languages to availableLanguages; canonical fields stay immutable.
+      allow update: if isAuthenticated()
+        && isValidId(problemId)
+        && isValidAlgoBlueprint(request.resource.data, problemId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['availableLanguages'])
+        && request.resource.data.availableLanguages.hasAll(resource.data.availableLanguages)
+        && request.resource.data.availableLanguages.size() >= resource.data.availableLanguages.size()
+        && request.resource.data.availableLanguages.size() <= 6;
+      allow delete: if false;
+
+      match /adapters/{languageId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated()
+          && isValidId(problemId)
+          && isValidLanguage(languageId)
+          && isValidAlgoAdapter(request.resource.data, problemId, languageId);
+        allow update, delete: if false;
+      }
+    }
+
+    // ===============================================================
+    // Default Deny
+    // ===============================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

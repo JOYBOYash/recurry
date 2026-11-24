@@ -288,7 +288,7 @@ export function LoginPage() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="btn-juice flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+                  className="btn-juice flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {submitting ? (
                     <>

@@ -54,20 +54,20 @@ export function RankBadge({
     <span
       title={titleText}
       aria-label={titleText}
-      className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-xl border font-mono font-bold transition-colors ${meta.badgeBorderClass} ${meta.badgeBgClass} ${meta.badgeTextClass} ${
-        size === 'sm'
-          ? 'gap-1 px-2 py-1 text-[11px]'
-          : 'gap-1.5 px-2.5 py-1 text-xs'
+      className={`inline-flex shrink-0 items-center whitespace-nowrap font-sans font-semibold text-slate-700 dark:text-neutral-200 ${
+        size === 'sm' ? 'gap-1.5 text-xs' : 'gap-2 text-sm'
       }`}
     >
       <RankIcon
         rank={rank}
         useRankColor
-        className={size === 'sm' ? 'h-3.5 w-3.5 shrink-0' : 'h-4 w-4 shrink-0'}
+        className={size === 'sm' ? 'h-4 w-4 shrink-0' : 'h-4.5 w-4.5 shrink-0'}
       />
       <span>{meta.label}</span>
       {showProgress && hasActiveTrack && (
-        <span className="opacity-75 tabular-nums">· {progressPercent}%</span>
+        <span className="font-mono text-xs text-slate-400 tabular-nums dark:text-neutral-500">
+          · {progressPercent}%
+        </span>
       )}
     </span>
   );

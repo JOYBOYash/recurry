@@ -72,6 +72,10 @@ export async function getGitHubRepoSummary(
       stars,
       formattedStars: formatGitHubStars(stars),
     };
+    if (cachedRepos.size >= 20 && !cachedRepos.has(repo)) {
+      const oldestKey = cachedRepos.keys().next().value;
+      if (oldestKey) cachedRepos.delete(oldestKey);
+    }
     cachedRepos.set(repo, {
       summary,
       expiresAt: now + CACHE_TTL_MS,

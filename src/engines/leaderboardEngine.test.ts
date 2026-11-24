@@ -2,10 +2,24 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   computeWeeklyLearnerMetrics,
+  countCompletedCurricula,
   sortLeaderboardEntries,
   summarizeLeaderboardComparison,
   type LeaderboardEntry,
 } from './leaderboardEngine';
+
+test('countCompletedCurricula counts fully finished tracks and respects certificate floor', () => {
+  const tracks = [
+    { modules: [{ id: 'm1' }, { id: 'm2' }] },
+    { modules: [{ id: 'm3' }, { id: 'm4' }] },
+    { modules: [] },
+  ];
+
+  assert.equal(countCompletedCurricula(tracks, ['m1', 'm2', 'm3']), 1);
+  assert.equal(countCompletedCurricula(tracks, ['m1', 'm2', 'm3', 'm4']), 2);
+  assert.equal(countCompletedCurricula(tracks, ['m1'], 3), 3);
+  assert.equal(countCompletedCurricula(tracks, [], -2), 0);
+});
 
 test('computeWeeklyLearnerMetrics counts rolling 7-day active days, modules, and consecutive streak', () => {
   const ref = new Date(2026, 10, 15, 12, 0, 0); // 2026-11-15
@@ -28,7 +42,7 @@ test('computeWeeklyLearnerMetrics counts rolling 7-day active days, modules, and
   assert.equal(metrics.totalModulesCompleted, 4);
 });
 
-test('sortLeaderboardEntries ranks by weekly_streak and module_volume independently', () => {
+test('sortLeaderboardEntries ranks by weekly_streak, module_volume, daily_streak, and completed_curricula independently', () => {
   const entries: LeaderboardEntry[] = [
     {
       uid: 'u1',
@@ -39,6 +53,7 @@ test('sortLeaderboardEntries ranks by weekly_streak and module_volume independen
       currentStreak: 9,
       weeklyModulesCompleted: 7,
       totalModulesCompleted: 14,
+      completedCurriculaCount: 1,
       updatedAt: '2026-11-15T10:00:00Z',
     },
     {
@@ -50,19 +65,47 @@ test('sortLeaderboardEntries ranks by weekly_streak and module_volume independen
       currentStreak: 4,
       weeklyModulesCompleted: 12,
       totalModulesCompleted: 18,
+      completedCurriculaCount: 4,
       updatedAt: '2026-11-15T11:00:00Z',
+    },
+    {
+      uid: 'u3',
+      username: 'grace',
+      preferredLanguage: 'sql',
+      rank: 'legend',
+      weeklyActiveDays: 5,
+      currentStreak: 14,
+      weeklyModulesCompleted: 5,
+      totalModulesCompleted: 20,
+      completedCurriculaCount: 2,
+      updatedAt: '2026-11-15T12:00:00Z',
     },
   ];
 
   const byStreak = sortLeaderboardEntries(entries, 'weekly_streak', 'u2');
   assert.equal(byStreak[0]?.username, 'ada');
-  assert.equal(byStreak[1]?.isCurrentUser, true);
-  assert.equal(byStreak[1]?.position, 2);
+  assert.equal(byStreak[2]?.isCurrentUser, true);
+  assert.equal(byStreak[2]?.position, 3);
 
   const byVolume = sortLeaderboardEntries(entries, 'module_volume', 'u2');
   assert.equal(byVolume[0]?.username, 'linus');
   assert.equal(byVolume[0]?.isCurrentUser, true);
   assert.equal(byVolume[0]?.position, 1);
+
+  const byDailyStreak = sortLeaderboardEntries(entries, 'daily_streak', 'u1');
+  assert.deepEqual(
+    byDailyStreak.map((r) => r.username),
+    ['grace', 'ada', 'linus'],
+  );
+  assert.equal(byDailyStreak[1]?.isCurrentUser, true);
+
+  const byCurricula = sortLeaderboardEntries(entries, 'completed_curricula', 'u3');
+  assert.deepEqual(
+    byCurricula.map((r) => r.username),
+    ['linus', 'grace', 'ada'],
+  );
+  assert.equal(byCurricula[0]?.completedCurriculaCount, 4);
+  assert.equal(byCurricula[1]?.isCurrentUser, true);
 });
 
 test('summarizeLeaderboardComparison calculates accurate peer gaps and averages', () => {

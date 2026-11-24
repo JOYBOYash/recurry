@@ -103,6 +103,87 @@
         "snippets": { "type": "object" }
       },
       "required": ["id", "uid", "category", "concept", "description", "createdAt", "snippets"]
+    },
+    "AlgoProblemDoc": {
+      "title": "AlgoProblemDoc",
+      "description": "Shared language-agnostic canonical problem decomposition blueprint stored once per normalized problem.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "fingerprint": { "type": "string" },
+        "title": { "type": "string" },
+        "problemSummary": { "type": "string" },
+        "canonicalPrompt": { "type": "string" },
+        "conceptCategory": {
+          "type": "string",
+          "enum": [
+            "foundations_io",
+            "control_flow",
+            "functions_scope",
+            "arrays_strings",
+            "hash_maps",
+            "two_pointers",
+            "recursion_trees",
+            "sorting_searching",
+            "dynamic_programming",
+            "queries_data"
+          ]
+        },
+        "difficulty": { "type": "string", "enum": ["foundation", "intermediate", "advanced"] },
+        "timeComplexity": { "type": "string" },
+        "spaceComplexity": { "type": "string" },
+        "edgeCases": { "type": "array", "items": { "type": "string" } },
+        "steps": { "type": "array" },
+        "availableLanguages": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["sql", "java", "cpp", "python", "javascript", "ruby"] }
+        },
+        "createdByUid": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": [
+        "id",
+        "fingerprint",
+        "title",
+        "problemSummary",
+        "canonicalPrompt",
+        "conceptCategory",
+        "difficulty",
+        "timeComplexity",
+        "spaceComplexity",
+        "edgeCases",
+        "steps",
+        "availableLanguages",
+        "createdByUid",
+        "createdAt"
+      ]
+    },
+    "AlgoLanguageAdapterDoc": {
+      "title": "AlgoLanguageAdapterDoc",
+      "description": "Cached per-language syntax hints and step snippets mapped to a canonical AlgoProblemDoc.",
+      "type": "object",
+      "properties": {
+        "problemId": { "type": "string" },
+        "language": { "type": "string", "enum": ["sql", "java", "cpp", "python", "javascript", "ruby"] },
+        "setupNote": { "type": "string" },
+        "stepHints": { "type": "array" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["problemId", "language", "setupNote", "stepHints", "createdAt"]
+    },
+    "AlgoUserProgressDoc": {
+      "title": "AlgoUserProgressDoc",
+      "description": "Private learner checklist completion state for an Algo Mode problem.",
+      "type": "object",
+      "properties": {
+        "problemId": { "type": "string" },
+        "uid": { "type": "string" },
+        "activeLanguage": { "type": "string", "enum": ["sql", "java", "cpp", "python", "javascript", "ruby"] },
+        "completedStepIds": { "type": "array", "items": { "type": "string" } },
+        "updatedAt": { "type": "string" },
+        "completedAt": { "type": ["string", "null"] }
+      },
+      "required": ["problemId", "uid", "activeLanguage", "completedStepIds", "updatedAt", "completedAt"]
     }
   },
   "firestore": {
@@ -121,6 +202,18 @@
     "/users/{userId}/references/{entryId}": {
       "schema": { "$ref": "#/entities/ReferenceEntryDoc" },
       "description": "Saved syntax comparison reference cards."
+    },
+    "/users/{userId}/algoProgress/{problemId}": {
+      "schema": { "$ref": "#/entities/AlgoUserProgressDoc" },
+      "description": "Private per-learner Algo Mode checklist completion state."
+    },
+    "/algoProblems/{problemId}": {
+      "schema": { "$ref": "#/entities/AlgoProblemDoc" },
+      "description": "Shared canonical language-agnostic Algo Mode problem blueprints."
+    },
+    "/algoProblems/{problemId}/adapters/{languageId}": {
+      "schema": { "$ref": "#/entities/AlgoLanguageAdapterDoc" },
+      "description": "Cached per-language syntax adapters for an Algo Mode problem."
     }
   }
 }

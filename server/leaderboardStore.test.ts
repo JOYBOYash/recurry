@@ -18,6 +18,7 @@ test('normalizeLeaderboardEntry clamps extreme counts and invalid languages safe
     currentStreak: -5,
     weeklyModulesCompleted: 20,
     totalModulesCompleted: 90,
+    completedCurriculaCount: 9999,
   });
 
   assert.equal(entry.uid, 'uid-1');
@@ -28,6 +29,12 @@ test('normalizeLeaderboardEntry clamps extreme counts and invalid languages safe
   assert.equal(entry.currentStreak, 0);
   assert.equal(entry.weeklyModulesCompleted, 20);
   assert.equal(entry.totalModulesCompleted, 90);
+  assert.equal(entry.completedCurriculaCount, 500);
+
+  const negative = normalizeLeaderboardEntry('uid-2', {
+    completedCurriculaCount: -4,
+  });
+  assert.equal(negative.completedCurriculaCount, 0);
 });
 
 test('upsertLeaderboardEntry persists and lists multiple learners cleanly', async () => {
@@ -44,6 +51,7 @@ test('upsertLeaderboardEntry persists and lists multiple learners cleanly', asyn
       currentStreak: 3,
       weeklyModulesCompleted: 5,
       totalModulesCompleted: 9,
+      completedCurriculaCount: 1,
     });
     await upsertLeaderboardEntry('u2', {
       username: 'maya',
@@ -53,12 +61,15 @@ test('upsertLeaderboardEntry persists and lists multiple learners cleanly', asyn
       currentStreak: 6,
       weeklyModulesCompleted: 11,
       totalModulesCompleted: 18,
+      completedCurriculaCount: 3,
     });
 
     const list = await listLeaderboardEntries();
     assert.equal(list.length, 2);
     assert.equal(list[0]?.uid, 'u2');
+    assert.equal(list[0]?.completedCurriculaCount, 3);
     assert.equal(list[1]?.uid, 'u1');
+    assert.equal(list[1]?.completedCurriculaCount, 1);
   } finally {
     delete process.env.LEADERBOARD_STORE_PATH;
     await fs.rm(tmpDir, { recursive: true, force: true });

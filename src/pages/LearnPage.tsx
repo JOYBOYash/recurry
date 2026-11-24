@@ -4,21 +4,18 @@ import {
   ArrowRight,
   Award,
   CheckCircle2,
-  Clock,
   Loader2,
   Lock,
   Play,
   RotateCcw,
   Star,
-  Zap,
 } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { LanguageIcon } from '../components/LanguageIcon';
-import { RankIcon } from '../components/RankIcon';
 import { WorkbenchView } from '../components/WorkbenchView';
 import { useAppAuth } from '../context/AppAuthContext';
-import { LANGUAGE_MAP, SKILL_LEVELS } from '../data/languages';
-import { getModuleRecallDrills } from '../engines/learningEngine';
+import { useFocusMode } from '../context/FocusModeContext';
 import {
   computeTrackAccuracyAndStars,
   evaluateTrackModulesProgression,
@@ -29,12 +26,12 @@ import { triggerTrackCompletionConfetti } from '../utils/confetti';
 import {
   extractCoreObjectives,
   formatModuleCountLabel,
-  getModuleStatusLabel,
 } from '../utils/curriculumCards';
 
 export function LearnPage() {
   const { trackId } = useParams<{ trackId?: string }>();
   const navigate = useNavigate();
+  const { focusMode } = useFocusMode();
 
   const {
     profile,
@@ -55,6 +52,8 @@ export function LearnPage() {
 
   const [mode, setMode] = useState<'overview' | 'workbench'>('overview');
   const [issuingCert, setIssuingCert] = useState(false);
+  const [confirmRestartOpen, setConfirmRestartOpen] = useState(false);
+  const [restarting, setRestarting] = useState(false);
 
   const selectedTrack = trackId
     ? tracks.find((t) => t.id === trackId) ?? activeTrack
@@ -127,26 +126,26 @@ export function LearnPage() {
 
   if (!selectedTrack) {
     return (
-      <div className="mx-auto max-w-xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center dark:border-neutral-800 dark:bg-[#181818]">
-          <h1 className="font-display text-2xl font-bold text-slate-950 dark:text-white">
+      <div className="mx-auto max-w-md px-4 py-12 sm:px-6">
+        <div className="rounded-xl border border-slate-200/80 bg-white p-8 text-center dark:border-neutral-800 dark:bg-[#181818]">
+          <h1 className="font-display text-xl font-bold text-slate-950 dark:text-white">
             No curriculum selected
           </h1>
-          <p className="mt-1 text-sm text-slate-600 dark:text-neutral-400">
+          <p className="mt-1 text-xs text-slate-500 dark:text-neutral-400">
             Choose or create a track to begin.
           </p>
-          <div className="mt-6 flex flex-wrap justify-center gap-3">
+          <div className="mt-5 flex justify-center gap-2.5">
             <Link
               to="/generate"
-              className="btn-juice inline-flex min-h-11 items-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700"
+              className="btn-juice inline-flex h-9 items-center rounded-lg bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700"
             >
-              <span>Create Curriculum</span>
+              Create Curriculum
             </Link>
             <Link
               to="/app/curriculums"
-              className="btn-juice inline-flex min-h-11 items-center rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-200 dark:hover:bg-[#262626]"
+              className="inline-flex h-9 items-center rounded-lg px-4 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:text-neutral-300 dark:hover:bg-[#222222]"
             >
-              <span>Dashboard</span>
+              Curriculums
             </Link>
           </div>
         </div>
@@ -156,28 +155,31 @@ export function LearnPage() {
 
   if (isTrackLockedByActive && programmeLock.activeIncompleteTrackId) {
     return (
-      <div className="mx-auto max-w-xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="rounded-2xl border-2 border-amber-300 bg-white p-8 text-center dark:border-amber-600/80 dark:bg-[#181818]">
-          <Lock className="mx-auto h-7 w-7 text-amber-600 dark:text-amber-400" aria-hidden="true" />
-          <h1 className="mt-4 font-display text-2xl font-bold text-slate-950 dark:text-white">
+      <div className="mx-auto max-w-md px-4 py-12 sm:px-6">
+        <div className="rounded-xl border border-slate-200/80 bg-white p-8 text-center dark:border-neutral-800 dark:bg-[#181818]">
+          <Lock
+            className="mx-auto h-6 w-6 text-amber-500"
+            aria-hidden="true"
+          />
+          <h1 className="mt-3 font-display text-xl font-bold text-slate-950 dark:text-white">
             Curriculum Locked
           </h1>
-          <p className="mt-2 text-sm text-slate-600 dark:text-neutral-400">
+          <p className="mt-1 text-xs text-slate-500 dark:text-neutral-400">
             Finish your active curriculum first.
           </p>
-          <div className="mt-6 flex flex-wrap justify-center gap-3">
+          <div className="mt-5 flex justify-center gap-2.5">
             <Link
               to={`/app/learn/${encodeURIComponent(programmeLock.activeIncompleteTrackId)}`}
-              className="btn-juice inline-flex min-h-11 items-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700"
+              className="btn-juice inline-flex h-9 items-center gap-1.5 rounded-lg bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700"
             >
-              <Play className="h-4 w-4" aria-hidden="true" />
+              <Play className="h-3.5 w-3.5" aria-hidden="true" />
               <span>Resume Active</span>
             </Link>
             <Link
               to="/app/curriculums"
-              className="btn-juice inline-flex min-h-11 items-center rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-200 dark:hover:bg-[#262626]"
+              className="inline-flex h-9 items-center rounded-lg px-4 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:text-neutral-300 dark:hover:bg-[#222222]"
             >
-              <span>Dashboard</span>
+              Curriculums
             </Link>
           </div>
         </div>
@@ -192,19 +194,26 @@ export function LearnPage() {
     completedModuleIds,
   );
   const existingCert = certificates.find((c) => c.trackId === selectedTrack.id);
-  const langMeta = LANGUAGE_MAP[selectedTrack.language];
-  const skillLabel =
-    SKILL_LEVELS.find((s) => s.id === selectedTrack.skillLevel)?.label ??
-    selectedTrack.skillLevel;
 
   async function handleClaimCertificate() {
     if (!selectedTrack) return;
     setIssuingCert(true);
     try {
       await issueTrackCertificate(selectedTrack);
-      navigate('/app/certificates');
+      navigate('/app/profile?tab=certificates');
     } finally {
       setIssuingCert(false);
+    }
+  }
+
+  async function handleConfirmRestart() {
+    if (!selectedTrack) return;
+    setRestarting(true);
+    try {
+      await redoTrack(selectedTrack.id);
+    } finally {
+      setRestarting(false);
+      setConfirmRestartOpen(false);
     }
   }
 
@@ -239,61 +248,65 @@ export function LearnPage() {
     selectedTrack.modules[0];
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
-      <div className="flex items-center justify-between gap-3">
-        <Link
-          to="/app/curriculums"
-          className="btn-juice inline-flex min-h-10 items-center gap-1.5 rounded-xl px-2 text-xs font-semibold text-slate-600 hover:bg-slate-200/60 hover:text-slate-950 dark:text-neutral-400 dark:hover:bg-[#202020] dark:hover:text-white"
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          <span>Dashboard</span>
-        </Link>
+    <div className="mx-auto max-w-4xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+      {!focusMode && (
+        <div className="flex items-center justify-between gap-3">
+          <Link
+            to="/app/curriculums"
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-200/60 hover:text-slate-950 dark:text-neutral-400 dark:hover:bg-[#202020] dark:hover:text-white"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            <span>Curriculums</span>
+          </Link>
 
-        <button
-          type="button"
-          onClick={() => void redoTrack(selectedTrack.id)}
-          className="btn-juice inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:border-blue-400 hover:text-blue-700 dark:border-neutral-700 dark:bg-[#181818] dark:text-neutral-200 dark:hover:border-blue-500 dark:hover:text-blue-400"
-        >
-          <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-          <span>Redo</span>
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={() => setConfirmRestartOpen(true)}
+            aria-label={`Restart ${selectedTrack.title}`}
+            title="Restart track"
+            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-200/60 hover:text-slate-950 dark:text-neutral-500 dark:hover:bg-[#202020] dark:hover:text-white"
+          >
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+      )}
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 dark:border-neutral-800 dark:bg-[#181818]">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex items-start gap-4">
-            <LanguageIcon language={selectedTrack.language} className="mt-1 h-8 w-8 shrink-0" />
-            <div className="space-y-1">
-              <div className="flex flex-wrap items-center gap-2 font-mono text-xs text-blue-700 dark:text-blue-400">
-                <span className="font-semibold">{langMeta.name}</span>
-                <span>·</span>
-                <span className="inline-flex items-center gap-1 font-semibold">
-                  <RankIcon rank={selectedTrack.skillLevel} useRankColor className="h-3.5 w-3.5" />
-                  <span>{skillLabel}</span>
-                </span>
-              </div>
-              <h1 className="font-display text-2xl font-bold text-slate-950 sm:text-3xl dark:text-white">
-                {selectedTrack.title}
-              </h1>
-            </div>
+      {/* Minimalist Track Summary */}
+      <section className="space-y-4 rounded-xl border border-slate-200/80 bg-white p-5 dark:border-neutral-800 dark:bg-[#181818]">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <LanguageIcon
+              language={selectedTrack.language}
+              className="h-6 w-6 shrink-0"
+            />
+            <h1 className="truncate font-display text-xl font-bold tracking-tight text-slate-950 sm:text-2xl dark:text-white">
+              {selectedTrack.title}
+            </h1>
           </div>
 
-          <div className="inline-flex items-center gap-1.5 font-mono text-xs font-bold text-blue-700 tabular-nums dark:text-blue-400">
-            <Zap className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>
-              {progression.totalXpEarned}/{progression.totalXpPossible} XP
-            </span>
-          </div>
+          {nextModule && (
+            <button
+              type="button"
+              onClick={async () => {
+                await selectTrackAndModule(selectedTrack.id, nextModule.id);
+                setMode('workbench');
+              }}
+              className="btn-juice inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700"
+            >
+              <Play className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>
+                {progression.completedCount === 0
+                  ? 'Start'
+                  : progression.percentage === 100
+                    ? 'Review'
+                    : 'Continue'}
+              </span>
+            </button>
+          )}
         </div>
 
-        <div className="mt-6 space-y-3 border-t border-slate-100 pt-5 dark:border-neutral-800">
-          <div className="flex items-center justify-between font-mono text-xs text-slate-600 tabular-nums dark:text-neutral-400">
-            <span>{formatModuleCountLabel(progression.completedCount, progression.totalCount)}</span>
-            <span className="font-bold text-slate-950 dark:text-white">
-              {progression.percentage}%
-            </span>
-          </div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-neutral-800">
+        <div className="space-y-1.5">
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-neutral-800">
             <div
               className={`h-full rounded-full transition-all duration-300 ${
                 progression.percentage === 100 ? 'bg-emerald-600' : 'bg-blue-600'
@@ -301,245 +314,179 @@ export function LearnPage() {
               style={{ width: `${progression.percentage}%` }}
             />
           </div>
-
-          {nextModule && (
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={async () => {
-                  await selectTrackAndModule(selectedTrack.id, nextModule.id);
-                  setMode('workbench');
-                }}
-                className="btn-juice inline-flex min-h-11 items-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700"
-              >
-                <Play className="h-4 w-4" aria-hidden="true" />
-                <span>
-                  {progression.completedCount === 0
-                    ? `Start: ${nextModule.title}`
-                    : progression.percentage === 100
-                      ? `Review: ${nextModule.title}`
-                      : `Continue: ${nextModule.title}`}
-                </span>
-              </button>
-            </div>
-          )}
+          <div className="flex items-center justify-between font-mono text-[11px] text-slate-500 tabular-nums dark:text-neutral-400">
+            <span>
+              {formatModuleCountLabel(
+                progression.completedCount,
+                progression.totalCount,
+              )}
+            </span>
+            <span>{progression.percentage}%</span>
+          </div>
         </div>
       </section>
 
       {progression.percentage === 100 && (
-        <section className="flex flex-col items-start justify-between gap-4 rounded-2xl border-2 border-amber-400 bg-white p-6 sm:flex-row sm:items-center dark:border-amber-600/80 dark:bg-[#181818]">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-1.5">
+        <section className="animate-accomplish-pop flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200/80 bg-white px-5 py-4 dark:border-neutral-800 dark:bg-[#181818]">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-0.5">
               {Array.from({ length: 5 }).map((_, i) => (
                 <Star
                   key={i}
                   className={`h-4 w-4 ${
                     i < accuracy.stars
                       ? 'fill-amber-400 text-amber-500'
-                      : 'text-slate-300 dark:text-neutral-700'
+                      : 'text-slate-200 dark:text-neutral-700'
                   }`}
                   aria-hidden="true"
                 />
               ))}
-              <span className="ml-1 font-mono text-xs font-bold text-amber-900 tabular-nums dark:text-amber-300">
-                {accuracy.accuracyPercent}% · {accuracy.stars}/5
-              </span>
             </div>
-            <h2 className="font-display text-lg font-bold text-slate-950 dark:text-white">
+            <span className="font-display text-sm font-bold text-slate-950 dark:text-white">
               Track Complete
-            </h2>
+            </span>
           </div>
 
           {existingCert ? (
             <Link
-              to="/app/certificates"
-              className="btn-juice inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border-b-2 border-amber-700 bg-amber-500 px-5 py-2.5 text-xs font-bold text-white hover:bg-amber-600"
+              to="/app/profile?tab=certificates"
+              className="btn-juice inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-amber-500 px-3.5 text-xs font-semibold text-white hover:bg-amber-600"
             >
               <Award className="h-4 w-4" aria-hidden="true" />
-              <span>View Certificate</span>
+              <span>Certificate</span>
             </Link>
           ) : (
             <button
               type="button"
               disabled={issuingCert}
               onClick={() => void handleClaimCertificate()}
-              className="btn-juice inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border-b-2 border-amber-700 bg-amber-500 px-5 py-2.5 text-xs font-bold text-white hover:bg-amber-600 disabled:opacity-60"
+              className="btn-juice inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-amber-500 px-3.5 text-xs font-semibold text-white hover:bg-amber-600 disabled:opacity-60"
             >
               {issuingCert ? (
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
               ) : (
                 <Award className="h-4 w-4" aria-hidden="true" />
               )}
-              <span>Claim Certificate</span>
+              <span>Claim Award</span>
             </button>
           )}
         </section>
       )}
 
-      <section aria-label="Curriculum modules" className="space-y-4">
-        <h2 className="font-display text-lg font-bold text-slate-950 dark:text-white">
-          Modules
-        </h2>
+      {/* Minimalist Lesson Cards — Tight Vertical Rhythm */}
+      <section aria-label="Curriculum lessons" className="space-y-2">
+        {selectedTrack.modules.map((mod, idx) => {
+          const node = progression.nodes[idx];
+          const status = node?.status ?? 'available';
+          const isDone = status === 'completed';
+          const isAvailable = status === 'available';
+          const isLocked = status === 'locked';
+          const firstObjective = extractCoreObjectives(mod, 2).join(' · ');
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {selectedTrack.modules.map((mod, idx) => {
-            const node = progression.nodes[idx];
-            const status = node?.status ?? 'available';
-            const isDone = status === 'completed';
-            const isAvailable = status === 'available';
-            const isLocked = status === 'locked';
-            const modAcc = moduleAccuracy[mod.id];
-            const drills = getModuleRecallDrills(mod, selectedTrack.language);
-            const drillsPassedCount = Math.min(
-              (modAcc?.drillsPassed ?? []).length,
-              drills.length,
-            );
-            const moduleProgressPct = isDone
-              ? 100
-              : drills.length > 0
-                ? Math.round((drillsPassedCount / drills.length) * 80)
-                : 0;
-            const objectives = extractCoreObjectives(mod, 3);
-
-            return (
-              <article
-                key={mod.id}
-                className={`flex flex-col justify-between gap-5 rounded-2xl border p-5 sm:p-6 ${
-                  isAvailable
-                    ? 'border-2 border-blue-600 bg-white dark:border-blue-500 dark:bg-[#181818]'
-                    : isDone
-                      ? 'border-emerald-500 bg-white dark:border-emerald-600 dark:bg-[#181818]'
-                      : 'border-slate-200 bg-slate-50/70 opacity-80 dark:border-neutral-800 dark:bg-[#141414]'
-                }`}
+          return (
+            <article
+              key={mod.id}
+              className={`group flex items-center justify-between gap-3 rounded-xl border px-4 py-3.5 transition-colors ${
+                isAvailable
+                  ? 'border-blue-500/70 bg-white dark:border-blue-500/60 dark:bg-[#181818]'
+                  : isDone
+                    ? 'border-slate-200/80 bg-white dark:border-neutral-800 dark:bg-[#181818]'
+                    : 'border-slate-200/50 bg-slate-50/40 opacity-65 dark:border-neutral-800/60 dark:bg-[#151515]'
+              }`}
+            >
+              <button
+                type="button"
+                disabled={isLocked}
+                onClick={async () => {
+                  await selectTrackAndModule(selectedTrack.id, mod.id);
+                  setMode('workbench');
+                }}
+                className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left disabled:cursor-not-allowed"
               >
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <span
-                      className={`inline-flex items-center gap-1 font-mono text-[11px] font-bold ${
-                        isDone
-                          ? 'text-emerald-700 dark:text-emerald-400'
-                          : isAvailable
-                            ? 'text-blue-700 dark:text-blue-400'
-                            : 'text-slate-500 dark:text-neutral-400'
-                      }`}
-                    >
-                      {isDone ? (
-                        <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-                      ) : isLocked ? (
-                        <Lock className="h-3.5 w-3.5" aria-hidden="true" />
-                      ) : (
-                        <Play className="h-3.5 w-3.5" aria-hidden="true" />
-                      )}
-                      <span>{getModuleStatusLabel(status)}</span>
-                    </span>
+                <span className="shrink-0">
+                  {isDone ? (
+                    <CheckCircle2
+                      className="h-4.5 w-4.5 text-emerald-600 dark:text-emerald-400"
+                      aria-hidden="true"
+                    />
+                  ) : isLocked ? (
+                    <Lock
+                      className="h-4 w-4 text-slate-400 dark:text-neutral-500"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <Play
+                      className="h-4 w-4 text-blue-600 dark:text-blue-400"
+                      aria-hidden="true"
+                    />
+                  )}
+                </span>
 
-                    <span className="inline-flex items-center gap-2 font-mono text-[11px] text-slate-500 tabular-nums dark:text-neutral-400">
-                      <span className="inline-flex items-center gap-1">
-                        <Clock className="h-3 w-3" aria-hidden="true" />
-                        {mod.estimatedMinutes}m
-                      </span>
-                      <span className="font-semibold text-amber-700 dark:text-amber-400">
-                        +{node?.xpReward ?? 30} XP
-                      </span>
-                    </span>
-                  </div>
-
-                  <h3 className="font-display text-base font-bold leading-snug text-slate-950 dark:text-white">
+                <div className="min-w-0 flex-1">
+                  <h2 className="truncate font-display text-sm font-bold text-slate-950 dark:text-white">
                     {mod.title}
-                  </h3>
-
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between font-mono text-[11px] text-slate-500 tabular-nums dark:text-neutral-400">
-                      <span>
-                        {drillsPassedCount}/{drills.length} recall
-                      </span>
-                      {modAcc && modAcc.attempts > 0 && (
-                        <span className="font-semibold text-emerald-700 dark:text-emerald-400">
-                          {modAcc.bestAccuracy}%
-                        </span>
-                      )}
-                    </div>
-                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-neutral-800">
-                      <div
-                        className={`h-full rounded-full transition-all duration-300 ${
-                          isDone
-                            ? 'bg-emerald-600'
-                            : isLocked
-                              ? 'bg-slate-400 dark:bg-neutral-600'
-                              : 'bg-blue-600'
-                        }`}
-                        style={{ width: `${moduleProgressPct}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  {objectives.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {objectives.map((obj) => (
-                        <span
-                          key={obj}
-                          className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[11px] text-slate-700 dark:border-neutral-800 dark:bg-[#202020] dark:text-neutral-300"
-                        >
-                          {obj}
-                        </span>
-                      ))}
-                    </div>
+                  </h2>
+                  {!focusMode && firstObjective && (
+                    <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-neutral-400">
+                      {firstObjective}
+                    </p>
                   )}
                 </div>
+              </button>
 
-                <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-4 dark:border-neutral-800">
+              <div className="flex shrink-0 items-center gap-1">
+                {!isLocked && (
                   <button
                     type="button"
-                    disabled={isLocked}
+                    onClick={() => void toggleModuleComplete(mod.id)}
+                    aria-pressed={isDone}
+                    aria-label={
+                      isDone
+                        ? `Mark ${mod.title} incomplete`
+                        : `Mark ${mod.title} complete`
+                    }
+                    title={isDone ? 'Mark incomplete' : 'Mark complete'}
+                    className={`inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg transition-colors ${
+                      isDone
+                        ? 'text-emerald-600 hover:bg-slate-100 dark:text-emerald-400 dark:hover:bg-[#242424]'
+                        : 'text-slate-300 hover:bg-slate-100 hover:text-slate-600 dark:text-neutral-600 dark:hover:bg-[#242424] dark:hover:text-neutral-200'
+                    }`}
+                  >
+                    <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                )}
+
+                {!isLocked && (
+                  <button
+                    type="button"
                     onClick={async () => {
                       await selectTrackAndModule(selectedTrack.id, mod.id);
                       setMode('workbench');
                     }}
-                    className={`btn-juice group inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold ${
-                      isLocked
-                        ? 'cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400 dark:border-neutral-800 dark:bg-[#202020] dark:text-neutral-500'
-                        : isAvailable
-                          ? 'border-b-2 border-blue-800 bg-blue-600 text-white hover:bg-blue-700'
-                          : 'bg-slate-900 text-white hover:bg-slate-800 dark:bg-[#262626] dark:hover:bg-[#303030]'
-                    }`}
+                    aria-label={`Open ${mod.title}`}
+                    className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-950 dark:text-neutral-500 dark:hover:bg-[#242424] dark:hover:text-white"
                   >
-                    {isLocked ? (
-                      <>
-                        <Lock className="h-3.5 w-3.5" aria-hidden="true" />
-                        <span>Locked</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>{isAvailable ? 'Start' : isDone ? 'Review' : 'Open'}</span>
-                        <ArrowRight
-                          className="h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-0.5"
-                          aria-hidden="true"
-                        />
-                      </>
-                    )}
+                    <ArrowRight
+                      className="h-4 w-4 transition-transform duration-150 group-hover:translate-x-0.5"
+                      aria-hidden="true"
+                    />
                   </button>
-
-                  {!isLocked && (
-                    <button
-                      type="button"
-                      onClick={() => void toggleModuleComplete(mod.id)}
-                      aria-pressed={isDone}
-                      aria-label={isDone ? `Mark ${mod.title} incomplete` : `Mark ${mod.title} complete`}
-                      className={`btn-juice inline-flex min-h-10 items-center justify-center rounded-xl border bg-white px-3 py-2 text-xs font-semibold dark:bg-[#202020] ${
-                        isDone
-                          ? 'border-emerald-500 text-emerald-700 dark:border-emerald-600 dark:text-emerald-400'
-                          : 'border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-900 dark:border-neutral-700 dark:text-neutral-400 dark:hover:border-neutral-600 dark:hover:text-white'
-                      }`}
-                    >
-                      <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                    </button>
-                  )}
-                </div>
-              </article>
-            );
-          })}
-        </div>
+                )}
+              </div>
+            </article>
+          );
+        })}
       </section>
+
+      <ConfirmDialog
+        isOpen={confirmRestartOpen}
+        title="Restart curriculum?"
+        description={`Reset all completed modules for "${selectedTrack.title}" and start fresh?`}
+        confirmLabel="Restart"
+        busy={restarting}
+        onConfirm={handleConfirmRestart}
+        onCancel={() => setConfirmRestartOpen(false)}
+      />
     </div>
   );
 }

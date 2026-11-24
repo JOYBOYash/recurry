@@ -58,6 +58,7 @@ import {
   computeTrackAccuracyAndStars,
   type DailyQuotaStatus,
 } from '../utils/curriculumLogic';
+import { clearLocalAlgoProgress } from '../utils/algoPersistence';
 import {
   buildOfflineWorkspaceSnapshot,
   clearOfflineWorkspaceSnapshot,
@@ -285,6 +286,7 @@ export function AppAuthProvider({ children }: { children: ReactNode }) {
 
   async function signOutUser() {
     clearOfflineWorkspaceSnapshot();
+    clearLocalAlgoProgress();
     await signOut(auth);
   }
 

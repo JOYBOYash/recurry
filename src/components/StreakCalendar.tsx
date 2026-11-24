@@ -3,7 +3,6 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
-  Flame,
   Target,
   Trophy,
 } from 'lucide-react';
@@ -12,6 +11,7 @@ import {
   buildStreakCalendarMonth,
   computeStreakMetrics,
 } from '../engines/streaksEngine';
+import { FlamingIcon } from './FlamingIcon';
 
 interface StreakCalendarProps {
   activityCounts: Record<string, number>;
@@ -140,54 +140,49 @@ export function StreakCalendar({
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-neutral-800 dark:bg-[#181818]">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600 dark:bg-[#202020] dark:text-amber-400">
-            <Flame
-              className={`h-5 w-5 ${metrics.currentStreak > 0 ? 'fill-amber-500' : ''}`}
-              aria-hidden="true"
-            />
+      <div className="grid grid-cols-3 divide-x divide-slate-200/75 rounded-xl border border-slate-200/80 bg-white dark:divide-neutral-800/80 dark:border-neutral-800 dark:bg-[#181818]">
+        <div className="px-4 py-3.5">
+          <div className="text-[11px] font-medium text-slate-500 dark:text-neutral-400">
+            Current Streak
           </div>
-          <div>
-            <div className="text-xs font-semibold text-slate-500 dark:text-neutral-400">Current Streak</div>
-            <div className="font-mono text-lg font-bold text-slate-950 tabular-nums dark:text-white">
+          <div className="mt-0.5 flex items-center gap-1.5 font-mono text-base font-bold text-slate-950 tabular-nums dark:text-white">
+            <FlamingIcon active={metrics.currentStreak > 0} className="h-4.5 w-4.5" />
+            <span>
               {metrics.currentStreak} {metrics.currentStreak === 1 ? 'day' : 'days'}
-            </div>
+            </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-neutral-800 dark:bg-[#181818]">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-[#202020] dark:text-blue-400">
-            <Trophy className="h-5 w-5" aria-hidden="true" />
+        <div className="px-4 py-3.5">
+          <div className="text-[11px] font-medium text-slate-500 dark:text-neutral-400">
+            Longest Streak
           </div>
-          <div>
-            <div className="text-xs font-semibold text-slate-500 dark:text-neutral-400">Longest Streak</div>
-            <div className="font-mono text-lg font-bold text-slate-950 tabular-nums dark:text-white">
+          <div className="mt-0.5 flex items-center gap-1.5 font-mono text-base font-bold text-slate-950 tabular-nums dark:text-white">
+            <Trophy className="h-4 w-4 text-blue-600 dark:text-blue-400" aria-hidden="true" />
+            <span>
               {metrics.longestStreak} {metrics.longestStreak === 1 ? 'day' : 'days'}
-            </div>
+            </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-neutral-800 dark:bg-[#181818]">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-[#202020] dark:text-emerald-400">
-            <Target className="h-5 w-5" aria-hidden="true" />
+        <div className="px-4 py-3.5">
+          <div className="text-[11px] font-medium text-slate-500 dark:text-neutral-400">
+            Active Days
           </div>
-          <div>
-            <div className="text-xs font-semibold text-slate-500 dark:text-neutral-400">Total Active Days</div>
-            <div className="font-mono text-lg font-bold text-slate-950 tabular-nums dark:text-white">
-              {metrics.totalActiveDays}
-            </div>
+          <div className="mt-0.5 flex items-center gap-1.5 font-mono text-base font-bold text-slate-950 tabular-nums dark:text-white">
+            <Target className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+            <span>{metrics.totalActiveDays}</span>
           </div>
         </div>
       </div>
 
       <section
         aria-label={`Streak calendar for ${calendarMonth.monthLabel}`}
-        className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-neutral-800 dark:bg-[#181818] sm:p-6"
+        className="rounded-xl border border-slate-200/80 bg-white p-5 dark:border-neutral-800 dark:bg-[#181818] sm:p-6"
       >
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4 dark:border-neutral-800">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4 dark:border-neutral-800/80">
           <div>
-            <h2 className="font-display text-lg font-bold text-slate-950 dark:text-white">
+            <h2 className="font-display text-base font-bold text-slate-950 dark:text-white">
               {calendarMonth.monthLabel}
             </h2>
             <p className="font-mono text-xs text-slate-500 tabular-nums dark:text-neutral-400">

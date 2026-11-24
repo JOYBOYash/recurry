@@ -162,71 +162,64 @@ export function CertificatesPage() {
             return (
               <article
                 key={cert.id}
-                className="rounded-2xl border-2 border-slate-200 bg-white p-6 dark:border-neutral-800 dark:bg-[#181818] sm:p-8"
+                className="rounded-xl border border-slate-200/80 bg-white p-6 dark:border-neutral-800 dark:bg-[#181818] sm:p-8"
               >
-                <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-neutral-800 dark:bg-[#202020] sm:p-8">
-                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-4 dark:border-neutral-800">
-                    <div className="flex items-center gap-3">
-                      <LanguageIcon language={cert.language} className="h-7 w-7" />
-                      <div>
-                        <div className="font-mono text-[11px] font-semibold text-blue-700 dark:text-blue-400">
-                          CERTIFICATE OF COMPLETION
-                        </div>
-                        <div className="font-display text-lg font-bold text-slate-950 dark:text-white">
-                          recurry · {langMeta.name}
-                        </div>
-                      </div>
-                    </div>
-                    <span className="font-mono text-xs font-semibold text-slate-700 dark:text-neutral-200">
-                      {cert.certificateCode}
-                    </span>
-                  </div>
-
-                  <div className="py-6 text-center">
-                    <p className="text-xs font-medium text-slate-500 dark:text-neutral-400">
-                      Awarded to
-                    </p>
-                    <h2 className="mt-1 font-display text-3xl font-bold text-slate-950 dark:text-white">
-                      @{cert.username}
-                    </h2>
-                    <p className="mt-2 text-sm font-semibold text-slate-700 dark:text-neutral-300">
-                      {cert.trackTitle}
-                    </p>
-
-                    <div
-                      className="mt-5 flex items-center justify-center gap-1.5"
-                      aria-label={`Rated ${cert.stars} out of 5 stars`}
-                    >
-                      {Array.from({ length: 5 }).map((_, idx) => (
-                        <Star
-                          key={idx}
-                          className={`h-6 w-6 ${
-                            idx < cert.stars
-                              ? 'fill-amber-400 text-amber-500'
-                              : 'text-slate-200 dark:text-neutral-700'
-                          }`}
-                          aria-hidden="true"
-                        />
-                      ))}
-                    </div>
-
-                    <div className="mt-3 font-mono text-xs font-bold text-slate-800 tabular-nums dark:text-neutral-200">
-                      {cert.stars}/5 Stars · {cert.accuracyPercent}% Accuracy ·{' '}
-                      {cert.completedModulesCount} Modules
+                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4 dark:border-neutral-800/80">
+                  <div className="flex items-center gap-3">
+                    <LanguageIcon language={cert.language} className="h-6 w-6" />
+                    <div className="font-display text-base font-bold text-slate-950 dark:text-white">
+                      recurry · {langMeta.name}
                     </div>
                   </div>
+                  <span className="font-mono text-xs text-slate-400 dark:text-neutral-500">
+                    {cert.certificateCode}
+                  </span>
+                </div>
 
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4 text-xs text-slate-500 dark:border-neutral-800 dark:text-neutral-400">
-                    <span className="font-mono">Issued {dateFormatted}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleDownloadSvg(cert)}
-                      className="btn-juice inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-800 hover:border-blue-600 hover:text-blue-700 print:hidden dark:border-neutral-700 dark:bg-[#181818] dark:text-neutral-200 dark:hover:border-blue-500 dark:hover:text-blue-300"
-                    >
-                      <Download className="h-3.5 w-3.5" aria-hidden="true" />
-                      <span>Download SVG</span>
-                    </button>
+                <div className="py-7 text-center">
+                  <p className="text-xs text-slate-400 dark:text-neutral-500">
+                    Awarded to
+                  </p>
+                  <h2 className="mt-1 font-display text-2xl font-bold text-slate-950 sm:text-3xl dark:text-white">
+                    @{cert.username}
+                  </h2>
+                  <p className="mt-1.5 text-sm font-medium text-slate-600 dark:text-neutral-300">
+                    {cert.trackTitle}
+                  </p>
+
+                  <div
+                    className="mt-5 flex items-center justify-center gap-1"
+                    aria-label={`Rated ${cert.stars} out of 5 stars`}
+                  >
+                    {Array.from({ length: 5 }).map((_, idx) => (
+                      <Star
+                        key={idx}
+                        className={`h-5 w-5 ${
+                          idx < cert.stars
+                            ? 'fill-amber-400 text-amber-500'
+                            : 'text-slate-200 dark:text-neutral-700'
+                        }`}
+                        aria-hidden="true"
+                      />
+                    ))}
                   </div>
+
+                  <div className="mt-2.5 font-mono text-xs text-slate-500 tabular-nums dark:text-neutral-400">
+                    {cert.stars}/5 stars · {cert.accuracyPercent}% accuracy ·{' '}
+                    {cert.completedModulesCount} modules
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 text-xs text-slate-400 dark:border-neutral-800/80 dark:text-neutral-500">
+                  <span className="font-mono">Issued {dateFormatted}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadSvg(cert)}
+                    className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-950 print:hidden dark:text-neutral-300 dark:hover:bg-[#242424] dark:hover:text-white"
+                  >
+                    <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>Download SVG</span>
+                  </button>
                 </div>
               </article>
             );

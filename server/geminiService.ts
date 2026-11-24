@@ -1,5 +1,14 @@
 import { GoogleGenAI, ThinkingLevel, Type } from '@google/genai';
 import type {
+  AlgoConceptId,
+  AlgoDifficulty,
+  AlgoLanguageAdapter,
+  AlgoLogicStep,
+  AlgoProblemBlueprint,
+  AlgoStepLanguageHint,
+  ResolvedAlgoConceptId,
+} from '../src/types/algo.ts';
+import type {
   CodeEvaluationResult,
   CurriculumTrack,
   DeepDiveExpansion,
@@ -12,14 +21,32 @@ import type {
   SkillLevel,
   TutorMessage,
 } from '../src/types/curriculum.ts';
+import {
+  ALGO_CONCEPT_LABELS,
+  ALLOWED_RESOLVED_CONCEPTS,
+  buildProblemIdFromFingerprint,
+  computeProblemFingerprint,
+} from '../src/utils/algoLogic.ts';
 
-const PRIMARY_MODEL_NAME = 'gemini-4-hydrogen';
-const FALLBACK_MODEL_NAME = 'gemini-3.1-flash-lite';
+export const PRIMARY_MODEL_NAME = 'gemini-3.1-flash-lite';
+export const FALLBACK_MODEL_NAME = 'gemini-4-hydrogen';
 const MODEL_CANDIDATES = [
   PRIMARY_MODEL_NAME,
   PRIMARY_MODEL_NAME,
   FALLBACK_MODEL_NAME,
+  PRIMARY_MODEL_NAME,
 ] as const;
+
+export function getThinkingConfig(modelName: string): {
+  thinkingLevel: ThinkingLevel;
+} {
+  // gemini-3.1-flash-lite defaults to MINIMAL (sub-second TTFT, no thinking stall).
+  // gemini-4-* does not support MINIMAL (returns 400), so use LOW for lowest latency.
+  if (modelName.startsWith('gemini-3.1-flash-lite')) {
+    return { thinkingLevel: ThinkingLevel.MINIMAL };
+  }
+  return { thinkingLevel: ThinkingLevel.LOW };
+}
 
 const LANGUAGE_LABELS: Record<LanguageId, string> = {
   sql: 'SQL (ANSI SQL / PostgreSQL 16)',
@@ -108,6 +135,16 @@ function mapGeminiError(error: unknown): { status: number; message: string } {
     };
   }
   if (
+    raw.includes('timed out') ||
+    raw.includes('DEADLINE_EXCEEDED') ||
+    raw.includes('504')
+  ) {
+    return {
+      status: 504,
+      message: 'AI generation timed out. Please try again.',
+    };
+  }
+  if (
     raw.includes('UNAVAILABLE') ||
     raw.includes('503') ||
     raw.includes('high demand')
@@ -149,8 +186,10 @@ export function isTransientGeminiError(error: unknown): boolean {
     raw.includes('504') ||
     raw.includes('ECONNRESET') ||
     raw.includes('ETIMEDOUT') ||
+    raw.includes('timed out') ||
     raw.includes('fetch failed') ||
-    raw.includes('Empty AI response')
+    raw.includes('Empty AI response') ||
+    raw.includes('aborted')
   );
 }
 
@@ -158,40 +197,198 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function executeWithModelFallback<T>(
-  operationName: string,
-  runner: (modelName: string, attempt: number) => Promise<T>,
+interface AttemptContext {
+  signal: AbortSignal;
+  markFirstToken: () => void;
+}
+
+function runAttemptWithDeadlines<T>(
+  runner: (ctx: AttemptContext) => Promise<T>,
+  options: {
+    firstTokenTimeoutMs: number;
+    maxTotalTimeoutMs: number;
+    label: string;
+    externalSignal?: AbortSignal;
+  },
 ): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const controller = new AbortController();
+    let settled = false;
+    let firstTokenReceived = false;
+
+    const cleanup = () => {
+      clearTimeout(firstTokenTimer);
+      clearTimeout(totalTimer);
+      options.externalSignal?.removeEventListener('abort', onExternalAbort);
+    };
+
+    const fail = (err: Error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      controller.abort(err);
+      reject(err);
+    };
+
+    const onExternalAbort = () => {
+      fail(new Error(`${options.label} aborted by caller`));
+    };
+
+    if (options.externalSignal?.aborted) {
+      fail(new Error(`${options.label} aborted by caller`));
+      return;
+    }
+    options.externalSignal?.addEventListener('abort', onExternalAbort, { once: true });
+
+    const firstTokenTimer = setTimeout(() => {
+      if (!firstTokenReceived) {
+        fail(
+          new Error(
+            `${options.label} timed out waiting for first token after ${options.firstTokenTimeoutMs}ms`,
+          ),
+        );
+      }
+    }, options.firstTokenTimeoutMs);
+
+    const totalTimer = setTimeout(() => {
+      fail(
+        new Error(`${options.label} timed out after ${options.maxTotalTimeoutMs}ms`),
+      );
+    }, options.maxTotalTimeoutMs);
+
+    runner({
+      signal: controller.signal,
+      markFirstToken: () => {
+        if (!firstTokenReceived) {
+          firstTokenReceived = true;
+          clearTimeout(firstTokenTimer);
+        }
+      },
+    }).then(
+      (value) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(value);
+      },
+      (err) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        controller.abort();
+        reject(err);
+      },
+    );
+  });
+}
+
+export async function executeWithModelFallbackForCandidates<T>(
+  operationName: string,
+  candidates: readonly string[],
+  runner: (modelName: string, attempt: number, ctx: AttemptContext) => Promise<T>,
+  options?: {
+    primaryFirstTokenMs?: number;
+    primaryMaxTotalMs?: number;
+    fallbackFirstTokenMs?: number;
+    fallbackMaxTotalMs?: number;
+    retryBaseDelayMs?: number;
+    externalSignal?: AbortSignal;
+  },
+): Promise<T> {
+  const primaryFirstTokenMs = options?.primaryFirstTokenMs ?? 15_000;
+  const primaryMaxTotalMs = options?.primaryMaxTotalMs ?? 45_000;
+  const fallbackFirstTokenMs = options?.fallbackFirstTokenMs ?? 25_000;
+  const fallbackMaxTotalMs = options?.fallbackMaxTotalMs ?? 60_000;
+  const retryBaseDelayMs = options?.retryBaseDelayMs ?? 650;
+
   let lastError: unknown;
-  for (let i = 0; i < MODEL_CANDIDATES.length; i += 1) {
-    const modelName = MODEL_CANDIDATES[i];
+  for (let i = 0; i < candidates.length; i += 1) {
+    const modelName = candidates[i];
+    const isPrimary = i === 0;
     try {
-      return await runner(modelName, i + 1);
+      return await runAttemptWithDeadlines(
+        (ctx) => runner(modelName, i + 1, ctx),
+        {
+          firstTokenTimeoutMs: isPrimary ? primaryFirstTokenMs : fallbackFirstTokenMs,
+          maxTotalTimeoutMs: isPrimary ? primaryMaxTotalMs : fallbackMaxTotalMs,
+          label: `${operationName}:${modelName}`,
+          externalSignal: options?.externalSignal,
+        },
+      );
     } catch (error) {
       lastError = error;
-      if (!isTransientGeminiError(error) || i === MODEL_CANDIDATES.length - 1) {
+      if (
+        options?.externalSignal?.aborted ||
+        !isTransientGeminiError(error) ||
+        i === candidates.length - 1
+      ) {
         throw error;
       }
-      const nextModel = MODEL_CANDIDATES[i + 1];
+      const nextModel = candidates[i + 1];
+      const delayMs = Math.min(2500, retryBaseDelayMs * (i + 1));
       console.warn(
-        `[geminiService] ${operationName} attempt ${i + 1} (${modelName}) transient failure; retrying with ${nextModel}:`,
+        `[geminiService] ${operationName} attempt ${i + 1} (${modelName}) transient failure; switching to ${nextModel} after ${delayMs}ms:`,
         error instanceof Error ? error.message : String(error),
       );
-      await sleep(700 * (i + 1));
+      await sleep(delayMs);
     }
   }
   throw lastError;
 }
 
-function extractJsonText(raw: string): string {
-  const trimmed = raw.trim();
-  if (trimmed.startsWith('```')) {
-    return trimmed
+async function executeWithModelFallback<T>(
+  operationName: string,
+  runner: (modelName: string, attempt: number, ctx: AttemptContext) => Promise<T>,
+  options?: {
+    primaryFirstTokenMs?: number;
+    primaryMaxTotalMs?: number;
+    fallbackFirstTokenMs?: number;
+    fallbackMaxTotalMs?: number;
+    retryBaseDelayMs?: number;
+    externalSignal?: AbortSignal;
+  },
+): Promise<T> {
+  return executeWithModelFallbackForCandidates(
+    operationName,
+    MODEL_CANDIDATES,
+    runner,
+    options,
+  );
+}
+
+async function collectStreamText(
+  stream: AsyncIterable<{ text?: string }>,
+  ctx: AttemptContext,
+  onProgress?: (charsGenerated: number) => void,
+): Promise<string> {
+  let rawText = '';
+  for await (const chunk of stream) {
+    if (ctx.signal.aborted) break;
+    if (chunk.text) {
+      ctx.markFirstToken();
+      rawText += chunk.text;
+      onProgress?.(rawText.length);
+    }
+  }
+  return rawText;
+}
+
+export function extractJsonText(raw: string): string {
+  let cleaned = raw.trim();
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned
       .replace(/^```(?:json)?\s*/i, '')
       .replace(/\s*```$/, '')
       .trim();
   }
-  return trimmed;
+  if (!cleaned.startsWith('{') && !cleaned.startsWith('[')) {
+    const firstBrace = cleaned.indexOf('{');
+    const lastBrace = cleaned.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      cleaned = cleaned.slice(firstBrace, lastBrace + 1).trim();
+    }
+  }
+  return cleaned;
 }
 
 export function stripUndefinedDeep<T>(value: T): T {
@@ -213,6 +410,7 @@ export function stripUndefinedDeep<T>(value: T): T {
 export async function generatePersonalizedCurriculum(
   req: PersonalizationRequest,
   onProgress?: (charsGenerated: number) => void,
+  signal?: AbortSignal,
 ): Promise<CurriculumTrack> {
   const ai = getGeminiClient();
   const moduleCount = PACE_COUNTS[req.paceDepth] ?? 6;
@@ -241,7 +439,7 @@ export async function generatePersonalizedCurriculum(
     '- Group modules into clear units using unitTitle (e.g., "Unit 1 · Core Foundations", "Unit 2 · Structured Patterns", "Unit 3 · Applied Mastery").',
     '- Every code example and starterCode must be syntactically valid, clean, and idiomatic.',
     '- Keep track subtitle under 10 words, bridgingStrategy to 1 crisp sentence, and module summaries to 1 short sentence.',
-    '- Include 1-2 concise code examples per module (4-8 lines each) with 1-sentence explanation and usageNote.',
+    '- Include 1 concise code example per module (4-8 lines) with a 1-sentence explanation and usageNote.',
     '- Include exactly 3 concise progressive recallDrills per module ordered by difficulty: (1) foundation, (2) applied, (3) mastery.',
     '- Mix recallDrills types across "multiple_choice", "predict_output", "fill_blank", and "bug_fix" so the learner uses active recall before coding.',
     '- For "multiple_choice", "predict_output", and "bug_fix", provide 3 concise options and set answer to the exact matching option string.',
@@ -254,14 +452,15 @@ export async function generatePersonalizedCurriculum(
   try {
     const parsed = await executeWithModelFallback(
       'generatePersonalizedCurriculum',
-      async (modelName) => {
+      async (modelName, _attempt, ctx) => {
         const stream = await ai.models.generateContentStream({
           model: modelName,
           contents: prompt,
           config: {
+            abortSignal: ctx.signal,
             systemInstruction:
               'You are an authoritative programming language curriculum architect for recurry. Build Duolingo-style active-recall coding tracks. Output strictly valid JSON matching the requested schema.',
-            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+            thinkingConfig: getThinkingConfig(modelName),
             responseMimeType: 'application/json',
             responseSchema: {
               type: Type.OBJECT,
@@ -383,13 +582,7 @@ export async function generatePersonalizedCurriculum(
           },
         });
 
-        let rawText = '';
-        for await (const chunk of stream) {
-          if (chunk.text) {
-            rawText += chunk.text;
-            onProgress?.(rawText.length);
-          }
-        }
+        const rawText = await collectStreamText(stream, ctx, onProgress);
 
         const cleanJson = extractJsonText(rawText);
         if (!cleanJson) {
@@ -414,6 +607,13 @@ export async function generatePersonalizedCurriculum(
           modules: candidate.modules,
         };
       },
+      {
+        primaryFirstTokenMs: 30_000,
+        primaryMaxTotalMs: 65_000,
+        fallbackFirstTokenMs: 40_000,
+        fallbackMaxTotalMs: 85_000,
+        externalSignal: signal,
+      },
     );
 
     const timestamp = Date.now();
@@ -422,13 +622,13 @@ export async function generatePersonalizedCurriculum(
     return stripUndefinedDeep({
       id: trackId,
       language: req.language,
-      title: parsed.title,
-      subtitle: parsed.subtitle,
+      title: String(parsed.title).trim().slice(0, 160),
+      subtitle: String(parsed.subtitle ?? '').trim().slice(0, 280),
       skillLevel: req.skillLevel,
       learningFocus: req.learningFocus,
       paceDepth: req.paceDepth,
-      priorBackground: req.priorBackground.trim(),
-      bridgingStrategy: parsed.bridgingStrategy,
+      priorBackground: req.priorBackground.trim().slice(0, 320),
+      bridgingStrategy: String(parsed.bridgingStrategy ?? '').trim().slice(0, 400),
       createdAt: new Date(timestamp).toISOString(),
       redoCount: 0,
       modules: parsed.modules.slice(0, moduleCount).map((mod, idx) => {
@@ -482,14 +682,15 @@ export async function generateLessonDeepDive(params: {
   try {
     const parsed = await executeWithModelFallback(
       'generateLessonDeepDive',
-      async (modelName) => {
-        const response = await ai.models.generateContent({
+      async (modelName, _attempt, ctx) => {
+        const stream = await ai.models.generateContentStream({
           model: modelName,
           contents: prompt,
           config: {
+            abortSignal: ctx.signal,
             systemInstruction:
               'You are a programming language instructor for recurry. Return crisp, accurate syntax deep-dives in JSON.',
-            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+            thinkingConfig: getThinkingConfig(modelName),
             responseMimeType: 'application/json',
             responseSchema: {
               type: Type.OBJECT,
@@ -518,7 +719,8 @@ export async function generateLessonDeepDive(params: {
           },
         });
 
-        return JSON.parse(extractJsonText(response.text ?? '{}')) as Omit<
+        const rawText = await collectStreamText(stream, ctx);
+        return JSON.parse(extractJsonText(rawText || '{}')) as Omit<
           DeepDiveExpansion,
           'generatedAt'
         >;
@@ -560,14 +762,15 @@ export async function evaluatePracticeCode(params: {
   try {
     const parsed = await executeWithModelFallback(
       'evaluatePracticeCode',
-      async (modelName) => {
-        const response = await ai.models.generateContent({
+      async (modelName, _attempt, ctx) => {
+        const stream = await ai.models.generateContentStream({
           model: modelName,
           contents: prompt,
           config: {
+            abortSignal: ctx.signal,
             systemInstruction:
               'You are a strict yet constructive code reviewer for recurry. Check exact language syntax and requirements.',
-            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+            thinkingConfig: getThinkingConfig(modelName),
             responseMimeType: 'application/json',
             responseSchema: {
               type: Type.OBJECT,
@@ -595,7 +798,8 @@ export async function evaluatePracticeCode(params: {
           },
         });
 
-        return JSON.parse(extractJsonText(response.text ?? '{}')) as {
+        const rawText = await collectStreamText(stream, ctx);
+        return JSON.parse(extractJsonText(rawText || '{}')) as {
           passed: boolean;
           feedback: string;
           syntaxIssues: string[];
@@ -653,14 +857,15 @@ export async function askSyntaxTutor(params: {
   try {
     const parsed = await executeWithModelFallback(
       'askSyntaxTutor',
-      async (modelName) => {
-        const response = await ai.models.generateContent({
+      async (modelName, _attempt, ctx) => {
+        const stream = await ai.models.generateContentStream({
           model: modelName,
           contents: prompt,
           config: {
+            abortSignal: ctx.signal,
             systemInstruction:
               'You are the recurry Syntax Tutor. Answer directly in 2-4 concise sentences and optionally include a short clean codeSnippet illustrating the syntax.',
-            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+            thinkingConfig: getThinkingConfig(modelName),
             responseMimeType: 'application/json',
             responseSchema: {
               type: Type.OBJECT,
@@ -673,7 +878,8 @@ export async function askSyntaxTutor(params: {
           },
         });
 
-        return JSON.parse(extractJsonText(response.text ?? '{}')) as {
+        const rawText = await collectStreamText(stream, ctx);
+        return JSON.parse(extractJsonText(rawText || '{}')) as {
           answer: string;
           codeSnippet?: string;
         };
@@ -718,14 +924,15 @@ export async function generateSyntaxReferenceEntry(
   try {
     const parsed = await executeWithModelFallback(
       'generateSyntaxReferenceEntry',
-      async (modelName) => {
-        const response = await ai.models.generateContent({
+      async (modelName, _attempt, ctx) => {
+        const stream = await ai.models.generateContentStream({
           model: modelName,
           contents: prompt,
           config: {
+            abortSignal: ctx.signal,
             systemInstruction:
               'You are a programming language specification editor for recurry. Output accurate syntax comparisons in JSON.',
-            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+            thinkingConfig: getThinkingConfig(modelName),
             responseMimeType: 'application/json',
             responseSchema: {
               type: Type.OBJECT,
@@ -749,7 +956,8 @@ export async function generateSyntaxReferenceEntry(
           },
         });
 
-        return JSON.parse(extractJsonText(response.text ?? '{}')) as {
+        const rawText = await collectStreamText(stream, ctx);
+        return JSON.parse(extractJsonText(rawText || '{}')) as {
           concept: string;
           description: string;
           entries: Array<{ language: LanguageId; snippet: ReferenceSnippet }>;
@@ -775,6 +983,393 @@ export async function generateSyntaxReferenceEntry(
         `Cross-language comparison for ${req.topic.trim()}.`,
       createdAt: new Date(timestamp).toISOString(),
       snippets,
+    });
+  } catch (error) {
+    const mapped = mapGeminiError(error);
+    throw new GeminiConfigError(mapped.message, mapped.status);
+  }
+}
+
+function resolveAlgoConcept(
+  requested: AlgoConceptId,
+  modelDetected?: string,
+): ResolvedAlgoConceptId {
+  if (requested !== 'auto' && ALLOWED_RESOLVED_CONCEPTS.has(requested)) {
+    return requested;
+  }
+  if (
+    modelDetected &&
+    ALLOWED_RESOLVED_CONCEPTS.has(modelDetected as ResolvedAlgoConceptId)
+  ) {
+    return modelDetected as ResolvedAlgoConceptId;
+  }
+  return 'foundations_io';
+}
+
+function resolveAlgoDifficulty(raw?: string): AlgoDifficulty {
+  if (raw === 'foundation' || raw === 'intermediate' || raw === 'advanced') {
+    return raw;
+  }
+  return 'foundation';
+}
+
+export async function decomposeAlgoProblem(params: {
+  uid: string;
+  language: LanguageId;
+  concept: AlgoConceptId;
+  problemText?: string;
+  imageBase64?: string;
+  imageMimeType?: string;
+}): Promise<{
+  blueprint: AlgoProblemBlueprint;
+  adapter: AlgoLanguageAdapter;
+}> {
+  const ai = getGeminiClient();
+  const languageLabel = LANGUAGE_LABELS[params.language];
+  const conceptHint =
+    params.concept === 'auto'
+      ? 'Auto-detect the best matching concept category from the allowed enum.'
+      : `Target Concept Focus: ${ALGO_CONCEPT_LABELS[params.concept]} (${params.concept}).`;
+
+  const textPrompt = [
+    'Analyze the attached programming problem or code snippet and split it into 4 to 7 small, concrete, sequential sub-problems that build incrementally into a complete output-ready program.',
+    conceptHint,
+    `Initial Language Adapter Target: ${languageLabel}.`,
+    params.problemText?.trim()
+      ? `Problem Statement or Code:\n${params.problemText.trim()}`
+      : 'Extract the problem statement accurately from the attached image first.',
+    'CRITICAL TWO-LAYER SEPARATION RULES:',
+    '1. The `steps` array MUST be 100% LANGUAGE-AGNOSTIC (pure algorithmic logic, variable concepts, I/O flow, edge-case checks — NEVER mention Python/Java/C++/JS/Ruby/SQL syntax inside `steps`).',
+    '2. Keep each step atomic, ordered, and progressively buildable so a learner writes Step 1 in an editor and augments each next step onto their previous code until they have a complete working program.',
+    '3. Keep `problemSummary`, step `goal`, `logicCue`, `checkCriteria`, and `pitfall` to 1 crisp sentence each.',
+    `4. In \`languageAdapter\`, map 1-to-1 to the exact same step order using \`stepIndex\` (0-based) with idiomatic ${languageLabel} syntax cues, idiomNote, and a concise 1-6 line stepSnippet for ONLY that sub-problem that composes cleanly with previous steps.`,
+  ].join('\n');
+
+  const contents =
+    params.imageBase64 && params.imageMimeType
+      ? {
+          parts: [
+            {
+              inlineData: {
+                mimeType: params.imageMimeType,
+                data: params.imageBase64,
+              },
+            },
+            { text: textPrompt },
+          ],
+        }
+      : textPrompt;
+
+  try {
+    const parsed = await executeWithModelFallback(
+      'decomposeAlgoProblem',
+      async (modelName, _attempt, ctx) => {
+        const stream = await ai.models.generateContentStream({
+          model: modelName,
+          contents,
+          config: {
+            abortSignal: ctx.signal,
+            systemInstruction:
+              'You are an algorithmic problem decomposition architect for recurry Algo Mode. Produce reusable language-agnostic sub-problem checklists plus a separate concise language adapter in strict JSON.',
+            thinkingConfig: getThinkingConfig(modelName),
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING },
+                problemSummary: { type: Type.STRING },
+                canonicalPrompt: { type: Type.STRING },
+                conceptCategory: {
+                  type: Type.STRING,
+                  enum: [
+                    'foundations_io',
+                    'control_flow',
+                    'functions_scope',
+                    'arrays_strings',
+                    'hash_maps',
+                    'two_pointers',
+                    'recursion_trees',
+                    'sorting_searching',
+                    'dynamic_programming',
+                    'queries_data',
+                  ],
+                },
+                difficulty: {
+                  type: Type.STRING,
+                  enum: ['foundation', 'intermediate', 'advanced'],
+                },
+                timeComplexity: { type: Type.STRING },
+                spaceComplexity: { type: Type.STRING },
+                edgeCases: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                },
+                steps: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      title: { type: Type.STRING },
+                      goal: { type: Type.STRING },
+                      logicCue: { type: Type.STRING },
+                      checkCriteria: { type: Type.STRING },
+                      pitfall: { type: Type.STRING },
+                    },
+                    required: ['title', 'goal', 'logicCue', 'checkCriteria', 'pitfall'],
+                  },
+                },
+                languageAdapter: {
+                  type: Type.OBJECT,
+                  properties: {
+                    setupNote: { type: Type.STRING },
+                    stepHints: {
+                      type: Type.ARRAY,
+                      items: {
+                        type: Type.OBJECT,
+                        properties: {
+                          stepIndex: { type: Type.INTEGER },
+                          syntaxCue: { type: Type.STRING },
+                          idiomNote: { type: Type.STRING },
+                          stepSnippet: { type: Type.STRING },
+                        },
+                        required: ['stepIndex', 'syntaxCue', 'idiomNote', 'stepSnippet'],
+                      },
+                    },
+                  },
+                  required: ['setupNote', 'stepHints'],
+                },
+              },
+              required: [
+                'title',
+                'problemSummary',
+                'canonicalPrompt',
+                'conceptCategory',
+                'difficulty',
+                'timeComplexity',
+                'spaceComplexity',
+                'edgeCases',
+                'steps',
+                'languageAdapter',
+              ],
+            },
+          },
+        });
+
+        const rawText = await collectStreamText(stream, ctx);
+        const raw = extractJsonText(rawText || '{}');
+        const candidate = JSON.parse(raw) as {
+          title?: string;
+          problemSummary?: string;
+          canonicalPrompt?: string;
+          conceptCategory?: string;
+          difficulty?: string;
+          timeComplexity?: string;
+          spaceComplexity?: string;
+          edgeCases?: string[];
+          steps?: Array<Omit<AlgoLogicStep, 'id'>>;
+          languageAdapter?: {
+            setupNote?: string;
+            stepHints?: Array<{
+              stepIndex: number;
+              syntaxCue: string;
+              idiomNote: string;
+              stepSnippet: string;
+            }>;
+          };
+        };
+
+        if (!candidate.title || !Array.isArray(candidate.steps) || candidate.steps.length === 0) {
+          throw new SyntaxError('Incomplete Algo Mode breakdown JSON.');
+        }
+
+        return candidate;
+      },
+      {
+        primaryFirstTokenMs: 15_000,
+        primaryMaxTotalMs: 40_000,
+        fallbackFirstTokenMs: 25_000,
+        fallbackMaxTotalMs: 55_000,
+      },
+    );
+
+    const resolvedConcept = resolveAlgoConcept(params.concept, parsed.conceptCategory);
+    const canonicalPrompt =
+      (parsed.canonicalPrompt?.trim() || params.problemText?.trim() || parsed.title || '')
+        .slice(0, 2000);
+    const fingerprintSource = params.problemText?.trim() || canonicalPrompt;
+    const fingerprint = computeProblemFingerprint(fingerprintSource, resolvedConcept);
+    const problemId = buildProblemIdFromFingerprint(fingerprint);
+    const nowIso = new Date().toISOString();
+
+    const steps: AlgoLogicStep[] = (parsed.steps ?? []).slice(0, 8).map((step, idx) => ({
+      id: `step-${idx + 1}`,
+      title: String(step.title || `Step ${idx + 1}`).slice(0, 120),
+      goal: String(step.goal || '').slice(0, 260),
+      logicCue: String(step.logicCue || '').slice(0, 260),
+      checkCriteria: String(step.checkCriteria || '').slice(0, 220),
+      pitfall: String(step.pitfall || '').slice(0, 220),
+    }));
+
+    const hintByIndex = new Map<
+      number,
+      { syntaxCue: string; idiomNote: string; stepSnippet: string }
+    >();
+    for (const h of parsed.languageAdapter?.stepHints ?? []) {
+      if (typeof h.stepIndex === 'number') {
+        hintByIndex.set(h.stepIndex, h);
+      }
+    }
+
+    const stepHints: AlgoStepLanguageHint[] = steps.map((step, idx) => {
+      const matched = hintByIndex.get(idx) ?? parsed.languageAdapter?.stepHints?.[idx];
+      return {
+        stepId: step.id,
+        syntaxCue: String(matched?.syntaxCue || step.logicCue).slice(0, 260),
+        idiomNote: String(matched?.idiomNote || '').slice(0, 220),
+        stepSnippet: String(matched?.stepSnippet || '').slice(0, 800),
+      };
+    });
+
+    const blueprint: AlgoProblemBlueprint = stripUndefinedDeep({
+      id: problemId,
+      fingerprint,
+      title: String(parsed.title || 'Problem Breakdown').slice(0, 120),
+      problemSummary: String(parsed.problemSummary || '').slice(0, 320),
+      canonicalPrompt,
+      conceptCategory: resolvedConcept,
+      difficulty: resolveAlgoDifficulty(parsed.difficulty),
+      timeComplexity: String(parsed.timeComplexity || 'O(n)').slice(0, 40),
+      spaceComplexity: String(parsed.spaceComplexity || 'O(1)').slice(0, 40),
+      edgeCases: Array.isArray(parsed.edgeCases)
+        ? parsed.edgeCases
+            .map((e) => String(e).trim().slice(0, 180))
+            .filter(Boolean)
+            .slice(0, 5)
+        : [],
+      steps,
+      availableLanguages: [params.language],
+      createdByUid: params.uid,
+      createdAt: nowIso,
+    });
+
+    const adapter: AlgoLanguageAdapter = stripUndefinedDeep({
+      problemId,
+      language: params.language,
+      setupNote: String(parsed.languageAdapter?.setupNote || '').slice(0, 260),
+      stepHints,
+      createdAt: nowIso,
+    });
+
+    return { blueprint, adapter };
+  } catch (error) {
+    const mapped = mapGeminiError(error);
+    throw new GeminiConfigError(mapped.message, mapped.status);
+  }
+}
+
+export async function generateAlgoLanguageAdapter(params: {
+  blueprint: Pick<
+    AlgoProblemBlueprint,
+    'id' | 'title' | 'problemSummary' | 'conceptCategory' | 'steps'
+  >;
+  language: LanguageId;
+}): Promise<AlgoLanguageAdapter> {
+  const ai = getGeminiClient();
+  const languageLabel = LANGUAGE_LABELS[params.language];
+
+  const compactSteps = params.blueprint.steps
+    .map((s) => `- ${s.id}: ${s.title} | Goal: ${s.goal} | Logic: ${s.logicCue}`)
+    .join('\n');
+
+  const prompt = [
+    `Adapt this existing language-agnostic algorithmic breakdown to ${languageLabel}.`,
+    `Problem: ${params.blueprint.title} — ${params.blueprint.problemSummary}`,
+    `Concept: ${ALGO_CONCEPT_LABELS[params.blueprint.conceptCategory]}`,
+    'Canonical Steps (preserve every stepId verbatim):',
+    compactSteps,
+    'Rules:',
+    `- Provide a concise 1-sentence setupNote for ${languageLabel}.`,
+    `- For every stepId above, return a targeted ${languageLabel} syntaxCue, a crisp 1-sentence idiomNote, and a minimal 1-6 line stepSnippet for ONLY that step.`,
+  ].join('\n');
+
+  try {
+    const parsed = await executeWithModelFallback(
+      'generateAlgoLanguageAdapter',
+      async (modelName, _attempt, ctx) => {
+        const stream = await ai.models.generateContentStream({
+          model: modelName,
+          contents: prompt,
+          config: {
+            abortSignal: ctx.signal,
+            systemInstruction:
+              'You are a programming language syntax adapter for recurry Algo Mode. Map existing canonical logic steps onto idiomatic syntax hints in strict JSON.',
+            thinkingConfig: getThinkingConfig(modelName),
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                setupNote: { type: Type.STRING },
+                stepHints: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      stepId: { type: Type.STRING },
+                      syntaxCue: { type: Type.STRING },
+                      idiomNote: { type: Type.STRING },
+                      stepSnippet: { type: Type.STRING },
+                    },
+                    required: ['stepId', 'syntaxCue', 'idiomNote', 'stepSnippet'],
+                  },
+                },
+              },
+              required: ['setupNote', 'stepHints'],
+            },
+          },
+        });
+
+        const rawText = await collectStreamText(stream, ctx);
+        const raw = extractJsonText(rawText || '{}');
+        const candidate = JSON.parse(raw) as {
+          setupNote?: string;
+          stepHints?: AlgoStepLanguageHint[];
+        };
+        if (!Array.isArray(candidate.stepHints) || candidate.stepHints.length === 0) {
+          throw new SyntaxError('Incomplete Algo language adapter JSON.');
+        }
+        return candidate;
+      },
+      {
+        primaryFirstTokenMs: 15_000,
+        primaryMaxTotalMs: 35_000,
+        fallbackFirstTokenMs: 25_000,
+        fallbackMaxTotalMs: 45_000,
+      },
+    );
+
+    const byId = new Map<string, AlgoStepLanguageHint>();
+    for (const h of parsed.stepHints ?? []) {
+      if (h?.stepId) byId.set(h.stepId, h);
+    }
+
+    const stepHints: AlgoStepLanguageHint[] = params.blueprint.steps.map(
+      (step, idx) => {
+        const matched = byId.get(step.id) ?? parsed.stepHints?.[idx];
+        return {
+          stepId: step.id,
+          syntaxCue: String(matched?.syntaxCue || step.logicCue).slice(0, 260),
+          idiomNote: String(matched?.idiomNote || '').slice(0, 220),
+          stepSnippet: String(matched?.stepSnippet || '').slice(0, 800),
+        };
+      },
+    );
+
+    return stripUndefinedDeep({
+      problemId: params.blueprint.id,
+      language: params.language,
+      setupNote: String(parsed.setupNote || '').slice(0, 260),
+      stepHints,
+      createdAt: new Date().toISOString(),
     });
   } catch (error) {
     const mapped = mapGeminiError(error);

@@ -20,6 +20,7 @@ interface FriendlyLeaderboardProps {
   rank: SkillLevel;
   activityCounts: Record<string, number>;
   completedModuleIds: string[];
+  completedCurriculaCount?: number;
   getIdToken: () => Promise<string>;
 }
 
@@ -30,6 +31,7 @@ export function FriendlyLeaderboard({
   rank,
   activityCounts,
   completedModuleIds,
+  completedCurriculaCount = 0,
   getIdToken,
 }: FriendlyLeaderboardProps) {
   const [metric, setMetric] = useState<LeaderboardSortMetric>('weekly_streak');
@@ -63,6 +65,7 @@ export function FriendlyLeaderboard({
             currentStreak: localMetrics.currentStreak,
             weeklyModulesCompleted: localMetrics.weeklyModulesCompleted,
             totalModulesCompleted: localMetrics.totalModulesCompleted,
+            completedCurriculaCount,
           }),
         });
 
@@ -118,6 +121,7 @@ export function FriendlyLeaderboard({
     localMetrics.currentStreak,
     localMetrics.weeklyModulesCompleted,
     localMetrics.totalModulesCompleted,
+    completedCurriculaCount,
     getIdToken,
   ]);
 

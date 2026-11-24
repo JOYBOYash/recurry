@@ -70,9 +70,11 @@ export async function fetchRealtimeGitHubStars(
           ? data.formattedStars
           : formatStargazerCount(stars);
       if (stars !== null) {
+        const resolvedSlug =
+          typeof data.repo === 'string' ? parseRepoSlug(data.repo) : slug;
         return {
-          repo: typeof data.repo === 'string' ? parseRepoSlug(data.repo) : slug,
-          url: typeof data.url === 'string' && data.url ? data.url : repoUrl,
+          repo: resolvedSlug,
+          url: `https://github.com/${resolvedSlug}`,
           stars,
           formattedStars,
         };

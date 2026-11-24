@@ -209,7 +209,7 @@ export function ReferenceView({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             {SUPPORTED_LANGUAGES.map((lang) => {
               const selected = genLanguages.includes(lang.id);
               return (
@@ -218,21 +218,22 @@ export function ReferenceView({
                   type="button"
                   onClick={() => toggleLanguage(lang.id)}
                   aria-pressed={selected}
-                  className={`btn-juice group inline-flex min-h-10 items-center gap-2 rounded-xl border bg-white px-3 py-1.5 text-xs font-semibold dark:bg-[#202020] ${
+                  className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium transition-colors ${
                     selected
-                      ? 'border-blue-600 text-blue-700 dark:border-blue-500 dark:text-blue-400'
-                      : 'border-slate-200 text-slate-600 hover:border-slate-300 dark:border-neutral-800 dark:text-neutral-400 dark:hover:border-neutral-700 dark:hover:text-neutral-200'
+                      ? 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-950'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-950 dark:border-neutral-800 dark:bg-[#181818] dark:text-neutral-400 dark:hover:text-neutral-200'
                   }`}
                 >
-                  <LanguageIcon language={lang.id} className="h-4 w-4" />
+                  <LanguageIcon language={lang.id} className="h-3.5 w-3.5" />
                   <span>{lang.name}</span>
                 </button>
               );
             })}
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 dark:border-neutral-800">
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 dark:border-neutral-800/80">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-neutral-400">
+              <span className="text-slate-400 dark:text-neutral-500">Examples:</span>
               {SUGGESTED_TOPICS.map((item) => (
                 <button
                   key={item.topic}
@@ -242,7 +243,7 @@ export function ReferenceView({
                     setGenCategory(item.category);
                     setGenError(null);
                   }}
-                  className="btn-juice min-h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 hover:border-blue-400 hover:text-blue-700 dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-300 dark:hover:border-blue-500 dark:hover:text-blue-400"
+                  className="cursor-pointer font-medium text-slate-600 underline-offset-4 hover:text-blue-600 hover:underline dark:text-neutral-300 dark:hover:text-blue-400"
                 >
                   {item.label}
                 </button>
@@ -252,7 +253,7 @@ export function ReferenceView({
             <button
               type="submit"
               disabled={isGenerating}
-              className="btn-juice inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60 sm:w-auto"
+              className="btn-juice inline-flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60 sm:w-auto"
             >
               {isGenerating ? (
                 <>
@@ -271,7 +272,7 @@ export function ReferenceView({
           {genError && (
             <div
               role="alert"
-              className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs text-red-800 dark:border-red-800/80 dark:bg-[#202020] dark:text-red-300"
+              className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50/80 p-3 text-xs text-red-800 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300"
             >
               <AlertCircle
                 className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400"
@@ -284,7 +285,7 @@ export function ReferenceView({
       </section>
 
       {entries.length === 0 ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center dark:border-neutral-800 dark:bg-[#181818]">
+        <div className="rounded-xl border border-slate-200/80 bg-white p-10 text-center dark:border-neutral-800 dark:bg-[#181818]">
           <h2 className="font-display text-base font-bold text-slate-900 dark:text-white">
             No saved comparisons
           </h2>
@@ -294,13 +295,13 @@ export function ReferenceView({
         </div>
       ) : (
         <div className="space-y-5">
-          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-neutral-800 dark:bg-[#181818] sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
             <div className="relative flex-1">
               <label htmlFor="reference-search-input" className="sr-only">
                 Filter saved comparisons
               </label>
               <Search
-                className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-neutral-500"
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-neutral-500"
                 aria-hidden="true"
               />
               <input
@@ -309,7 +310,7 @@ export function ReferenceView({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Filter comparisons..."
-                className="min-h-11 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none dark:border-neutral-700 dark:bg-[#202020] dark:text-white dark:placeholder:text-neutral-500 dark:focus:border-blue-500"
+                className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-xs text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none dark:border-neutral-800 dark:bg-[#181818] dark:text-white dark:placeholder:text-neutral-500"
               />
             </div>
 
@@ -319,7 +320,7 @@ export function ReferenceView({
               onChange={(e) =>
                 setFilterCategory(e.target.value as ReferenceCategory | 'All')
               }
-              className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-blue-600 focus:outline-none dark:border-neutral-700 dark:bg-[#202020] dark:text-white dark:focus:border-blue-500"
+              className="h-9 cursor-pointer rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 focus:border-blue-500 focus:outline-none dark:border-neutral-800 dark:bg-[#181818] dark:text-neutral-200"
             >
               <option value="All">All Categories</option>
               {REFERENCE_CATEGORIES.map((cat) => (

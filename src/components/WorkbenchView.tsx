@@ -8,14 +8,16 @@ import {
   Brain,
   CheckCheck,
   CheckCircle2,
+  Code2,
   Layers,
   Lightbulb,
   Loader2,
   Lock,
+  Plus,
   RotateCcw,
   Send,
-  Zap,
 } from 'lucide-react';
+import { useFocusMode } from '../context/FocusModeContext';
 import { LANGUAGE_MAP } from '../data/languages';
 import {
   evaluateLessonMastery,
@@ -36,7 +38,12 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { checkBalancedDelimiters } from '../utils/curriculumLogic';
 import { extractCoreObjectives } from '../utils/curriculumCards';
 import { parseApiJson } from '../utils/apiResponse';
+import {
+  appendCodeLine,
+  splitSolutionIntoIncrementalSteps,
+} from '../utils/uxFlowLogic';
 import { CodeBlock } from './CodeBlock';
+import { ConfirmDialog } from './ConfirmDialog';
 import { InlineCodeText } from './InlineCodeText';
 import { LanguageIcon } from './LanguageIcon';
 
@@ -67,6 +74,13 @@ interface WorkbenchViewProps {
 
 type LessonStep = 'learn' | 'recall' | 'practice' | 'tutor';
 
+const STEP_RANK: Record<LessonStep, number> = {
+  learn: 0,
+  recall: 1,
+  practice: 2,
+  tutor: 3,
+};
+
 export function WorkbenchView({
   activeTrack,
   activeModuleId,
@@ -84,7 +98,10 @@ export function WorkbenchView({
   onSaveDeepDive,
 }: WorkbenchViewProps) {
   const isOnline = useOnlineStatus();
+  const { focusMode } = useFocusMode();
+
   const [lessonStep, setLessonStep] = useState<LessonStep>('learn');
+  const [stepDirection, setStepDirection] = useState<'forward' | 'back'>('forward');
   const [activeDrillIdx, setActiveDrillIdx] = useState(0);
   const [drillAnswer, setDrillAnswer] = useState('');
   const [drillFeedback, setDrillFeedback] = useState<RecallGradingResult | null>(null);
@@ -94,6 +111,8 @@ export function WorkbenchView({
   const [codeByModule, setCodeByModule] = useState<Record<string, string>>({});
   const [showHint, setShowHint] = useState(false);
   const [showSolution, setShowSolution] = useState(false);
+  const [revealedSolutionLines, setRevealedSolutionLines] = useState(1);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [evaluation, setEvaluation] = useState<CodeEvaluationResult | null>(null);
   const [evalError, setEvalError] = useState<string | null>(null);
   const [isEvaluating, setIsEvaluating] = useState(false);
@@ -119,7 +138,7 @@ export function WorkbenchView({
           <button
             type="button"
             onClick={onStartBuilder}
-            className="btn-juice mt-6 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-6 py-3 text-sm font-bold text-white hover:bg-blue-700"
+            className="btn-juice mt-6 inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 text-sm font-semibold text-white hover:bg-blue-700"
           >
             <Layers className="h-4 w-4" aria-hidden="true" />
             <span>Create Track</span>
@@ -138,21 +157,33 @@ export function WorkbenchView({
     [activeModule, activeTrack.language],
   );
 
+  const solutionSteps = useMemo(
+    () => splitSolutionIntoIncrementalSteps(activeModule.challenge.sampleSolution),
+    [activeModule.challenge.sampleSolution],
+  );
+
   const currentCode =
     codeByModule[activeModule.id] ?? activeModule.challenge.starterCode;
 
   useEffect(() => {
     setLessonStep('learn');
+    setStepDirection('forward');
     setActiveDrillIdx(0);
     setDrillAnswer('');
     setDrillFeedback(null);
     setShowHint(false);
     setShowSolution(false);
+    setRevealedSolutionLines(1);
     setEvaluation(null);
     setEvalError(null);
     setDeepDiveError(null);
     setTutorError(null);
   }, [activeModule.id]);
+
+  function navigateLessonStep(next: LessonStep) {
+    setStepDirection(STEP_RANK[next] < STEP_RANK[lessonStep] ? 'back' : 'forward');
+    setLessonStep(next);
+  }
 
   const completedSet = new Set(completedModuleIds);
   const isModuleCompleted = completedSet.has(activeModule.id);
@@ -192,15 +223,6 @@ export function WorkbenchView({
       : isModuleCompleted
     : false;
 
-  const stepIndex =
-    lessonStep === 'learn'
-      ? 1
-      : lessonStep === 'recall'
-        ? 2
-        : lessonStep === 'practice'
-          ? 3
-          : 4;
-  const stepProgressPercent = Math.round((stepIndex / 4) * 100);
   const delimiterWarnings =
     currentCode.trim().length > 0 ? checkBalancedDelimiters(currentCode) : [];
 
@@ -229,16 +251,32 @@ export function WorkbenchView({
 
   function handleNextDrillOrPractice() {
     if (activeDrillIdx < drills.length - 1) {
+      setStepDirection('forward');
       setActiveDrillIdx((idx) => idx + 1);
       setDrillAnswer('');
       setDrillFeedback(null);
     } else {
-      setLessonStep('practice');
+      navigateLessonStep('practice');
     }
   }
 
   function updateEditorCode(nextValue: string) {
     setCodeByModule((prev) => ({ ...prev, [activeModule.id]: nextValue }));
+  }
+
+  function handleResetEditorConfirmed() {
+    updateEditorCode(activeModule.challenge.starterCode);
+    setEvaluation(null);
+    setEvalError(null);
+    setResetConfirmOpen(false);
+  }
+
+  function handleRequestResetEditor() {
+    if (currentCode.trim() === activeModule.challenge.starterCode.trim()) {
+      handleResetEditorConfirmed();
+      return;
+    }
+    setResetConfirmOpen(true);
   }
 
   function handleEditorKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
@@ -260,7 +298,7 @@ export function WorkbenchView({
     setEvalError(null);
     if (!isOnline) {
       setEvalError(
-        'You are offline. Compare your code with Solution or mark Complete when ready — AI grading resumes online.',
+        'You are offline. Build with the step-by-step guide or mark Complete when ready.',
       );
       return;
     }
@@ -308,9 +346,7 @@ export function WorkbenchView({
   async function handleGenerateDeepDive() {
     setDeepDiveError(null);
     if (!isOnline) {
-      setDeepDiveError(
-        'Offline mode: cached concept examples and recall drills remain available. Deep-dive expansion requires internet.',
-      );
+      setDeepDiveError('Offline mode: deep-dive expansion requires internet.');
       return;
     }
     setIsLoadingDeepDive(true);
@@ -416,36 +452,41 @@ export function WorkbenchView({
   }
 
   const coreObjectives = extractCoreObjectives(activeModule, 4);
+  const transitionClass =
+    stepDirection === 'back' ? 'animate-step-back' : 'animate-step-forward';
+
+  const visibleSolutionLines = solutionSteps.slice(0, revealedSolutionLines);
+  const currentSolutionPiece =
+    solutionSteps[Math.min(revealedSolutionLines - 1, solutionSteps.length - 1)] ?? '';
+  const hasMoreSolutionLines = revealedSolutionLines < solutionSteps.length;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
-      <div className="space-y-4">
+    <div className="mx-auto max-w-4xl space-y-5 px-4 py-7 sm:px-6 lg:px-8">
+      <div className="space-y-3.5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <button
             type="button"
             onClick={onBackToPath}
-            className="btn-juice inline-flex min-h-10 items-center gap-1.5 rounded-xl px-2 text-xs font-semibold text-slate-600 hover:bg-slate-200/60 hover:text-slate-950 dark:text-neutral-300 dark:hover:bg-[#202020] dark:hover:text-white"
+            className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-200/60 hover:text-slate-950 dark:text-neutral-400 dark:hover:bg-[#202020] dark:hover:text-white"
           >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            <span>Curriculum</span>
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Modules</span>
           </button>
 
           <div className="flex items-center gap-3">
-            <span className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-1 font-mono text-xs font-bold text-blue-800 tabular-nums dark:bg-[#202020] dark:text-blue-400">
-              <Zap className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" aria-hidden="true" />
-              <span>{mastery.xpEarned} XP</span>
-            </span>
-            <span className="font-mono text-xs text-slate-500 tabular-nums dark:text-neutral-400">
-              {activeModule.order} / {activeTrack.modules.length}
-            </span>
+            {!focusMode && (
+              <span className="font-mono text-xs text-slate-400 tabular-nums dark:text-neutral-500">
+                {activeModule.order}/{activeTrack.modules.length}
+              </span>
+            )}
             <button
               type="button"
               onClick={() => onToggleComplete(activeModule.id)}
               aria-pressed={isModuleCompleted}
-              className={`btn-juice inline-flex min-h-10 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold ${
+              className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-colors ${
                 isModuleCompleted
-                  ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-700/70 dark:bg-[#202020] dark:text-emerald-400'
-                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-neutral-700 dark:bg-[#181818] dark:text-neutral-200 dark:hover:bg-[#202020]'
+                  ? 'text-emerald-600 hover:bg-slate-100 dark:text-emerald-400 dark:hover:bg-[#202020]'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-neutral-300 dark:hover:bg-[#202020] dark:hover:text-white'
               }`}
             >
               <CheckCircle2
@@ -456,22 +497,16 @@ export function WorkbenchView({
                 }`}
                 aria-hidden="true"
               />
-              <span>{isModuleCompleted ? 'Done' : 'Complete'}</span>
+              <span>{isModuleCompleted ? 'Completed' : 'Mark Complete'}</span>
             </button>
           </div>
         </div>
 
-        <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-[#262626]">
-          <div
-            className="h-full rounded-full bg-blue-600 transition-all duration-300"
-            style={{ width: `${stepProgressPercent}%` }}
-          />
-        </div>
-
+        {/* Clean underline stage navigation */}
         <div
           role="tablist"
           aria-label="Lesson stages"
-          className="grid grid-cols-4 gap-1.5 rounded-2xl border border-slate-200 bg-white p-1.5 dark:border-neutral-800 dark:bg-[#181818]"
+          className="flex items-center gap-1 overflow-x-auto border-b border-slate-200/80 dark:border-neutral-800"
         >
           {(
             [
@@ -491,11 +526,11 @@ export function WorkbenchView({
                 type="button"
                 role="tab"
                 aria-selected={active}
-                onClick={() => setLessonStep(tab.id)}
-                className={`min-h-10 rounded-xl px-2 py-2 text-[11px] font-semibold transition-all duration-150 whitespace-nowrap sm:px-3 sm:text-xs ${
+                onClick={() => navigateLessonStep(tab.id)}
+                className={`relative -mb-px cursor-pointer whitespace-nowrap border-b-2 px-3.5 py-2.5 text-xs font-semibold transition-colors ${
                   active
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-neutral-300 dark:hover:bg-[#202020] dark:hover:text-white'
+                    ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-900 dark:text-neutral-400 dark:hover:text-white'
                 }`}
               >
                 {tab.label}
@@ -505,66 +540,66 @@ export function WorkbenchView({
         </div>
       </div>
 
+      {/* Stage 1: Concept */}
       {lessonStep === 'learn' && (
         <section
           key="learn"
-          className="animate-view-enter space-y-8 rounded-2xl border border-slate-200 bg-white p-6 dark:border-neutral-800 dark:bg-[#181818] sm:p-8"
+          className={`${transitionClass} space-y-7 rounded-xl border border-slate-200/80 bg-white p-6 dark:border-neutral-800 dark:bg-[#181818] sm:p-8`}
         >
-          <div className="flex items-start gap-4 border-b border-slate-100 pb-6 dark:border-neutral-800">
-            <LanguageIcon language={activeTrack.language} className="mt-1 h-7 w-7 shrink-0" />
+          <div className="flex items-start gap-3.5 border-b border-slate-100 pb-5 dark:border-neutral-800/80">
+            <LanguageIcon language={activeTrack.language} className="mt-1 h-6 w-6 shrink-0" />
             <div className="space-y-1.5">
-              <div className="flex flex-wrap items-center gap-2 font-mono text-xs text-slate-500 dark:text-neutral-400">
-                <span className="font-semibold text-blue-700 dark:text-blue-400">
-                  {langMeta.name}
-                </span>
-                <span aria-hidden="true">·</span>
-                <span className="tabular-nums">{activeModule.estimatedMinutes}m</span>
-                {activeModule.unitTitle && (
-                  <>
-                    <span aria-hidden="true">·</span>
-                    <span>{activeModule.unitTitle}</span>
-                  </>
-                )}
-              </div>
-              <h1 className="font-display text-2xl font-bold text-slate-950 dark:text-white sm:text-3xl">
+              {!focusMode && (
+                <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500 dark:text-neutral-400">
+                  <span className="font-medium text-blue-600 dark:text-blue-400">
+                    {langMeta.name}
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span className="tabular-nums">{activeModule.estimatedMinutes}m</span>
+                  {activeModule.unitTitle && (
+                    <>
+                      <span aria-hidden="true">·</span>
+                      <span>{activeModule.unitTitle}</span>
+                    </>
+                  )}
+                </div>
+              )}
+              <h1 className="font-display text-2xl font-bold tracking-tight text-slate-950 dark:text-white sm:text-3xl">
                 {activeModule.title}
               </h1>
-              <p className="text-sm leading-relaxed text-slate-600 dark:text-neutral-300">
+              <p className="max-w-2xl text-sm leading-relaxed text-slate-600 dark:text-neutral-300">
                 <InlineCodeText text={activeModule.summary} />
               </p>
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            {coreObjectives.length > 0 && (
-              <div className="space-y-2.5 rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-neutral-800 dark:bg-[#202020]">
-                <span className="block text-xs font-semibold text-slate-500 dark:text-neutral-400">
-                  Core Objectives
+          <div
+            className={`grid gap-6 border-b border-slate-100 pb-5 dark:border-neutral-800/80 ${
+              !focusMode && coreObjectives.length > 0 ? 'md:grid-cols-2' : ''
+            }`}
+          >
+            {!focusMode && coreObjectives.length > 0 && (
+              <div className="space-y-1.5">
+                <span className="block text-xs font-medium text-slate-400 dark:text-neutral-500">
+                  Objectives
                 </span>
-                <div className="flex flex-wrap gap-1.5">
-                  {coreObjectives.map((obj) => (
-                    <span
-                      key={obj}
-                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-mono text-xs text-slate-800 dark:border-neutral-700 dark:bg-[#181818] dark:text-neutral-200"
-                    >
-                      {obj}
-                    </span>
-                  ))}
-                </div>
+                <p className="text-sm leading-relaxed text-slate-700 dark:text-neutral-200">
+                  {coreObjectives.join(' · ')}
+                </p>
               </div>
             )}
 
-            <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4 dark:border-neutral-800 dark:bg-[#202020]">
-              <span className="block text-xs font-semibold text-slate-500 dark:text-neutral-400">
-                Grammar
+            <div className="space-y-1.5">
+              <span className="block text-xs font-medium text-slate-400 dark:text-neutral-500">
+                Syntax Pattern
               </span>
-              <code className="block overflow-x-auto font-mono text-sm font-medium text-slate-950 dark:text-neutral-100">
+              <code className="block overflow-x-auto font-mono text-sm text-slate-900 dark:text-neutral-100">
                 {activeModule.syntaxGrammar}
               </code>
             </div>
           </div>
 
-          <div className="space-y-8">
+          <div className="space-y-7">
             {activeModule.examples.map((ex, idx) => (
               <div key={idx} className="space-y-3">
                 <h2 className="text-sm font-bold text-slate-950 dark:text-white">
@@ -598,8 +633,8 @@ export function WorkbenchView({
           </div>
 
           {activeModule.commonPitfalls.length > 0 && (
-            <div className="border-t border-slate-100 pt-6 dark:border-neutral-800">
-              <h3 className="text-xs font-semibold text-amber-800 dark:text-amber-400">
+            <div className="border-t border-slate-100 pt-5 dark:border-neutral-800">
+              <h3 className="text-xs font-semibold text-amber-700 dark:text-amber-400">
                 Watch Out
               </h3>
               <ul className="mt-2 list-disc space-y-1.5 pl-4 text-sm text-slate-700 dark:text-neutral-300">
@@ -613,7 +648,7 @@ export function WorkbenchView({
           )}
 
           {activeModule.deepDive && (
-            <div className="space-y-4 border-t border-slate-100 pt-6 dark:border-neutral-800">
+            <div className="space-y-4 border-t border-slate-100 pt-5 dark:border-neutral-800">
               <h3 className="font-display text-base font-bold text-slate-950 dark:text-white">
                 Deep-Dive
               </h3>
@@ -653,10 +688,10 @@ export function WorkbenchView({
           {deepDiveError && (
             <div
               role="alert"
-              className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs text-red-800 dark:border-red-800/80 dark:bg-[#202020] dark:text-red-300"
+              className="flex items-start gap-2 rounded-xl border-l-2 border-rose-500 bg-slate-50 p-3.5 text-xs text-rose-700 dark:bg-[#141414] dark:text-rose-300"
             >
               <AlertCircle
-                className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400"
+                className="mt-0.5 h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400"
                 aria-hidden="true"
               />
               <span>{deepDiveError}</span>
@@ -669,17 +704,17 @@ export function WorkbenchView({
                 type="button"
                 onClick={handleGenerateDeepDive}
                 disabled={isLoadingDeepDive}
-                className="btn-juice inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-3 text-xs font-semibold text-slate-700 hover:border-blue-600 hover:text-blue-700 disabled:opacity-60 whitespace-nowrap dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-200 dark:hover:border-blue-500 dark:hover:text-blue-400"
+                className="btn-juice inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-700 hover:border-slate-300 hover:text-slate-950 disabled:opacity-60 whitespace-nowrap dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-200 dark:hover:text-white"
               >
                 {isLoadingDeepDive ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                    <span>Loading Deep-Dive...</span>
+                    <span>Loading...</span>
                   </>
                 ) : (
                   <>
                     <BookOpen className="h-4 w-4" aria-hidden="true" />
-                    <span>Expand Deep-Dive</span>
+                    <span>Deep-Dive</span>
                   </>
                 )}
               </button>
@@ -689,11 +724,11 @@ export function WorkbenchView({
 
             <button
               type="button"
-              onClick={() => setLessonStep('recall')}
-              className="btn-juice group inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-6 py-3 text-sm font-bold text-white hover:bg-blue-700 sm:w-auto"
+              onClick={() => navigateLessonStep('recall')}
+              className="btn-juice group inline-flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 text-sm font-semibold text-white hover:bg-blue-700 sm:w-auto"
             >
               <Brain className="h-4 w-4" aria-hidden="true" />
-              <span>Start Active Recall</span>
+              <span>Start Recall</span>
               <ArrowRight
                 className="h-4 w-4 transition-transform duration-150 group-hover:translate-x-0.5"
                 aria-hidden="true"
@@ -703,65 +738,63 @@ export function WorkbenchView({
         </section>
       )}
 
+      {/* Stage 2: Active Recall with Duolingo-style micro-accomplishments */}
       {lessonStep === 'recall' && currentDrill && (
         <section
-          key="recall"
-          className="animate-view-enter space-y-6 rounded-2xl border border-slate-200 bg-white p-6 dark:border-neutral-800 dark:bg-[#181818] sm:p-8"
+          key={`recall-${activeDrillIdx}`}
+          className={`${transitionClass} space-y-5 rounded-2xl border border-slate-200/80 bg-white p-6 dark:border-neutral-800 dark:bg-[#181818] sm:p-8`}
         >
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4 dark:border-neutral-800">
-            <div>
-              <h1 className="font-display text-xl font-bold text-slate-950 dark:text-white sm:text-2xl">
-                <InlineCodeText text={currentDrill.prompt} />
-              </h1>
-              <div className="mt-1 flex items-center gap-2 font-mono text-xs text-slate-500 dark:text-neutral-400">
-                <span>
-                  Drill {activeDrillIdx + 1} of {drills.length}
-                </span>
-                <span>·</span>
-                <span className="capitalize">{currentDrill.difficulty}</span>
-                <span>·</span>
-                <span>{currentDrill.conceptTag}</span>
-              </div>
-            </div>
+          {/* Segmented drill progress bar */}
+          <div className="flex items-center gap-1.5">
+            {drills.map((d, i) => {
+              const passed = mergedPassedDrillIds.includes(d.id);
+              const isCurrent = i === activeDrillIdx;
+              return (
+                <button
+                  key={d.id}
+                  type="button"
+                  onClick={() => {
+                    setStepDirection(i < activeDrillIdx ? 'back' : 'forward');
+                    setActiveDrillIdx(i);
+                    setDrillAnswer('');
+                    setDrillFeedback(null);
+                  }}
+                  aria-label={`Jump to drill ${i + 1}`}
+                  className={`h-1.5 flex-1 cursor-pointer rounded-full transition-colors ${
+                    passed
+                      ? 'bg-emerald-500'
+                      : isCurrent
+                        ? 'bg-blue-600'
+                        : 'bg-slate-200 hover:bg-slate-300 dark:bg-neutral-700 dark:hover:bg-neutral-600'
+                  }`}
+                />
+              );
+            })}
+          </div>
 
-            <div className="flex items-center gap-1.5">
-              {drills.map((d, i) => {
-                const passed = mergedPassedDrillIds.includes(d.id);
-                const isCurrent = i === activeDrillIdx;
-                return (
-                  <button
-                    key={d.id}
-                    type="button"
-                    onClick={() => {
-                      setActiveDrillIdx(i);
-                      setDrillAnswer('');
-                      setDrillFeedback(null);
-                    }}
-                    aria-label={`Jump to drill ${i + 1}`}
-                    className={`h-2.5 w-8 rounded-full transition-colors ${
-                      passed
-                        ? 'bg-emerald-500'
-                        : isCurrent
-                          ? 'bg-blue-600'
-                          : 'bg-slate-200 hover:bg-slate-300 dark:bg-neutral-700 dark:hover:bg-neutral-600'
-                    }`}
-                  />
-                );
-              })}
+          <div className="space-y-1 border-b border-slate-100 pb-4 dark:border-neutral-800">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-mono text-xs text-slate-400 tabular-nums dark:text-neutral-500">
+                {activeDrillIdx + 1}/{drills.length}
+                {!focusMode ? ` · ${currentDrill.conceptTag}` : ''}
+              </span>
             </div>
+            <h1 className="font-display text-xl font-bold text-slate-950 dark:text-white sm:text-2xl">
+              <InlineCodeText text={currentDrill.prompt} />
+            </h1>
           </div>
 
           {currentDrill.codeSnippet && (
             <CodeBlock
               code={currentDrill.codeSnippet}
               language={activeTrack.language}
-              title="Recall Snippet"
+              title="Snippet"
               compact
             />
           )}
 
           {currentDrill.options && currentDrill.options.length > 0 ? (
-            <div className="grid gap-2.5">
+            <div className="grid gap-2">
               {currentDrill.options.map((opt) => {
                 const selected = drillAnswer === opt;
                 return (
@@ -773,9 +806,9 @@ export function WorkbenchView({
                       setDrillFeedback(null);
                     }}
                     aria-pressed={selected}
-                    className={`btn-juice flex w-full items-center justify-between gap-3 rounded-xl border-2 px-4 py-3.5 text-left text-sm font-medium transition-colors ${
+                    className={`btn-juice flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border px-4 py-3.5 text-left text-sm font-medium transition-colors ${
                       selected
-                        ? 'border-blue-600 bg-blue-50/70 text-slate-950 dark:border-blue-500 dark:bg-[#202020] dark:text-white'
+                        ? 'border-blue-600 bg-white text-slate-950 ring-1 ring-blue-600 dark:border-blue-500 dark:bg-[#202020] dark:text-white dark:ring-blue-500'
                         : 'border-slate-200 bg-white text-slate-800 hover:border-slate-300 dark:border-neutral-800 dark:bg-[#141414] dark:text-neutral-200 dark:hover:border-neutral-700'
                     }`}
                   >
@@ -797,7 +830,7 @@ export function WorkbenchView({
             <div className="space-y-2">
               <label
                 htmlFor="recall-fill-input"
-                className="block text-xs font-semibold text-slate-700 dark:text-neutral-300"
+                className="block text-xs font-medium text-slate-500 dark:text-neutral-400"
               >
                 Your Answer
               </label>
@@ -809,139 +842,182 @@ export function WorkbenchView({
                   setDrillAnswer(e.target.value);
                   setDrillFeedback(null);
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && drillAnswer.trim()) {
+                    handleCheckRecallDrill();
+                  }
+                }}
                 placeholder="Type the missing syntax or concept..."
-                className="min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 font-mono text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none dark:border-neutral-700 dark:bg-[#202020] dark:text-white dark:placeholder:text-neutral-500 dark:focus:border-blue-500"
+                className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 font-mono text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none dark:border-neutral-700 dark:bg-[#202020] dark:text-white dark:placeholder:text-neutral-500 dark:focus:border-blue-500"
               />
             </div>
           )}
 
+          {/* Accomplishment / Retry banner */}
           {drillFeedback && (
             <div
               role="status"
-              className={`rounded-2xl border-2 p-4 text-sm ${
-                drillFeedback.correct
-                  ? 'border-emerald-300 bg-emerald-50/80 text-emerald-950 dark:border-emerald-600/80 dark:bg-[#202020] dark:text-emerald-300'
-                  : 'border-amber-300 bg-amber-50/80 text-amber-950 dark:border-amber-600/80 dark:bg-[#202020] dark:text-amber-300'
+              className={`animate-accomplish-pop flex flex-col gap-3 rounded-xl border-l-2 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between dark:bg-[#141414] ${
+                drillFeedback.correct ? 'border-emerald-500' : 'border-amber-500'
               }`}
             >
-              <div className="font-bold">
-                {drillFeedback.correct
-                  ? 'Active Recall Verified (+5 XP)'
-                  : 'Review & Retry'}
+              <div className="flex items-start gap-2.5">
+                {drillFeedback.correct ? (
+                  <CheckCircle2
+                    className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <AlertCircle
+                    className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400"
+                    aria-hidden="true"
+                  />
+                )}
+                <div>
+                  <div
+                    className={`text-sm font-bold ${
+                      drillFeedback.correct
+                        ? 'text-emerald-700 dark:text-emerald-400'
+                        : 'text-amber-700 dark:text-amber-400'
+                    }`}
+                  >
+                    {drillFeedback.correct ? 'Recall nailed' : 'Try again'}
+                  </div>
+                  <p className="mt-0.5 text-xs leading-relaxed text-slate-600 dark:text-neutral-300">
+                    <InlineCodeText text={drillFeedback.feedback} />
+                  </p>
+                </div>
               </div>
-              <p className="mt-1 text-xs leading-relaxed sm:text-sm">
-                <InlineCodeText text={drillFeedback.feedback} />
-              </p>
+
+              {drillFeedback.correct && (
+                <button
+                  type="button"
+                  onClick={handleNextDrillOrPractice}
+                  className="btn-juice inline-flex h-10 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-4 text-xs font-semibold text-white hover:bg-emerald-700"
+                >
+                  <span>
+                    {activeDrillIdx < drills.length - 1 ? 'Next Drill' : 'Start Challenge'}
+                  </span>
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              )}
             </div>
           )}
 
           <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 dark:border-neutral-800 sm:flex-row sm:items-center sm:justify-between">
             <button
               type="button"
-              onClick={() => setLessonStep('learn')}
-              className="btn-juice inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-200 dark:hover:bg-[#262626]"
+              onClick={() => navigateLessonStep('learn')}
+              className="btn-juice inline-flex h-10 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-700 hover:border-slate-300 dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-200 dark:hover:text-white"
             >
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
               <span>Concept</span>
             </button>
 
-            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
-              <button
-                type="button"
-                disabled={!drillAnswer.trim()}
-                onClick={handleCheckRecallDrill}
-                className="btn-juice inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-50"
-              >
-                <CheckCheck className="h-4 w-4" aria-hidden="true" />
-                <span>Check Recall</span>
-              </button>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              {!drillFeedback?.correct && (
+                <button
+                  type="button"
+                  disabled={!drillAnswer.trim()}
+                  onClick={handleCheckRecallDrill}
+                  className="btn-juice inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <CheckCheck className="h-4 w-4" aria-hidden="true" />
+                  <span>Check</span>
+                </button>
+              )}
 
-              <button
-                type="button"
-                onClick={handleNextDrillOrPractice}
-                className="btn-juice inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-900 hover:border-blue-500 hover:text-blue-700 dark:border-neutral-700 dark:bg-[#202020] dark:text-white dark:hover:border-blue-500 dark:hover:text-blue-400"
-              >
-                <span>
-                  {activeDrillIdx < drills.length - 1
-                    ? 'Next Drill'
-                    : 'Go to Code Challenge'}
-                </span>
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </button>
+              {!drillFeedback?.correct && (
+                <button
+                  type="button"
+                  onClick={handleNextDrillOrPractice}
+                  className="btn-juice inline-flex h-10 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-3.5 text-xs font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-neutral-400 dark:hover:bg-[#222222] dark:hover:text-white"
+                >
+                  <span>
+                    {activeDrillIdx < drills.length - 1 ? 'Skip' : 'Challenge'}
+                  </span>
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              )}
             </div>
           </div>
         </section>
       )}
 
+      {/* Stage 3: Progressive Code Challenge */}
       {lessonStep === 'practice' && (
         <section
           key="practice"
-          className="animate-view-enter space-y-5 rounded-2xl border border-slate-200 bg-white p-6 dark:border-neutral-800 dark:bg-[#181818] sm:p-8"
+          className={`${transitionClass} space-y-5 rounded-2xl border border-slate-200/80 bg-white p-6 dark:border-neutral-800 dark:bg-[#181818] sm:p-8`}
         >
-          <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 pb-5 dark:border-neutral-800">
-            <div className="space-y-1.5">
-              <h1 className="font-display text-2xl font-bold text-slate-950 dark:text-white">
-                {activeModule.challenge.title}
-              </h1>
-              <p className="max-w-2xl text-sm leading-relaxed text-slate-600 dark:text-neutral-300 sm:text-base">
-                <InlineCodeText text={activeModule.challenge.prompt} />
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setShowHint((v) => !v)}
-                aria-expanded={showHint}
-                className="btn-juice inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-200 dark:hover:bg-[#262626]"
-              >
-                <Lightbulb className="h-4 w-4 text-amber-600 dark:text-amber-400" aria-hidden="true" />
-                <span>{showHint ? 'Hide Hint' : 'Hint'}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowSolution((v) => !v)}
-                aria-expanded={showSolution}
-                className="btn-juice inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-200 dark:hover:bg-[#262626]"
-              >
-                <span>{showSolution ? 'Hide Solution' : 'Solution'}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  updateEditorCode(activeModule.challenge.starterCode);
-                  setEvaluation(null);
-                  setEvalError(null);
-                }}
-                className="btn-juice inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-200 dark:hover:bg-[#262626]"
-              >
-                <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>Reset</span>
-              </button>
-            </div>
+          <div className="space-y-1.5 border-b border-slate-100 pb-4 dark:border-neutral-800">
+            <h1 className="font-display text-2xl font-bold text-slate-950 dark:text-white">
+              {activeModule.challenge.title}
+            </h1>
+            <p className="max-w-2xl text-sm leading-relaxed text-slate-600 dark:text-neutral-300">
+              <InlineCodeText text={activeModule.challenge.prompt} />
+            </p>
           </div>
 
-          {showHint && (
-            <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-700 dark:border dark:border-neutral-800 dark:bg-[#202020] dark:text-neutral-300">
-              <InlineCodeText text={activeModule.challenge.hint} />
-            </div>
-          )}
-
-          {showSolution && (
-            <CodeBlock
-              code={activeModule.challenge.sampleSolution}
-              language={activeTrack.language}
-              title="Reference Solution"
-              compact
-            />
-          )}
-
+          {/* Code Editor with Icon-only Helper Toolbar */}
           <div className="overflow-hidden rounded-xl border border-neutral-800 bg-[#141414]">
-            <div className="flex items-center justify-between border-b border-neutral-800 bg-[#1C1C1C] px-4 py-2 text-xs text-neutral-400">
-              <span className="font-mono font-medium text-neutral-200">
-                {langMeta.name}
-              </span>
-              <span className="font-mono">Tab = 2 spaces</span>
+            <div className="flex items-center justify-between border-b border-neutral-800 bg-[#1C1C1C] px-3.5 py-2 text-xs">
+              <div className="flex items-center gap-2 font-mono font-medium text-neutral-200">
+                <LanguageIcon language={activeTrack.language} className="h-3.5 w-3.5" />
+                <span>{langMeta.name}</span>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setShowHint((v) => !v)}
+                  aria-expanded={showHint}
+                  aria-label="Toggle hint"
+                  title="Hint"
+                  className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded-md transition-colors ${
+                    showHint
+                      ? 'bg-[#2A2A2A] text-amber-400'
+                      : 'text-neutral-400 hover:bg-[#242424] hover:text-neutral-100'
+                  }`}
+                >
+                  <Lightbulb className="h-4 w-4" aria-hidden="true" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSolution((v) => !v);
+                    if (!showSolution) {
+                      setRevealedSolutionLines(1);
+                    }
+                  }}
+                  aria-expanded={showSolution}
+                  aria-label="Toggle step-by-step solution"
+                  title="Step-by-step solution"
+                  className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded-md transition-colors ${
+                    showSolution
+                      ? 'bg-[#2A2A2A] text-emerald-400'
+                      : 'text-neutral-400 hover:bg-[#242424] hover:text-neutral-100'
+                  }`}
+                >
+                  <Code2 className="h-4 w-4" aria-hidden="true" />
+                </button>
+
+                <span
+                  className="mx-1 h-3.5 w-px bg-neutral-700"
+                  aria-hidden="true"
+                />
+
+                <button
+                  type="button"
+                  onClick={handleRequestResetEditor}
+                  aria-label="Reset editor code"
+                  title="Reset editor"
+                  className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-[#242424] hover:text-neutral-100"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              </div>
             </div>
             <label htmlFor="practice-code-editor" className="sr-only">
               Practice code editor for {activeModule.challenge.title}
@@ -953,17 +1029,73 @@ export function WorkbenchView({
               onKeyDown={handleEditorKeyDown}
               rows={9}
               spellCheck={false}
+              style={{ fontVariantLigatures: 'none' }}
               className="w-full resize-y bg-[#141414] p-4 font-mono text-[13px] leading-6 text-neutral-100 placeholder:text-neutral-500 focus:outline-none"
             />
           </div>
 
+          {showHint && (
+            <div className="animate-view-enter rounded-xl bg-slate-50 p-3.5 text-sm text-slate-700 dark:bg-[#141414] dark:text-neutral-300">
+              <InlineCodeText text={activeModule.challenge.hint} />
+            </div>
+          )}
+
+          {/* Incremental Piece-by-Piece Solution Builder */}
+          {showSolution && solutionSteps.length > 0 && (
+            <div
+              data-testid="incremental-solution-panel"
+              className="animate-view-enter space-y-2.5 rounded-xl bg-slate-50 p-3.5 dark:bg-[#141414]"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-mono text-[11px] font-semibold text-slate-500 tabular-nums dark:text-neutral-400">
+                  Piece {Math.min(revealedSolutionLines, solutionSteps.length)}/
+                  {solutionSteps.length}
+                </span>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateEditorCode(appendCodeLine(currentCode, currentSolutionPiece))
+                    }
+                    className="inline-flex h-7 cursor-pointer items-center gap-1 rounded-md bg-slate-900 px-2.5 text-xs font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-neutral-200"
+                  >
+                    <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>Add</span>
+                  </button>
+
+                  {hasMoreSolutionLines && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setRevealedSolutionLines((n) =>
+                          Math.min(solutionSteps.length, n + 1),
+                        )
+                      }
+                      className="inline-flex h-7 cursor-pointer items-center gap-1 rounded-md px-2 text-xs font-semibold text-blue-600 transition-colors hover:bg-slate-200/70 dark:text-blue-400 dark:hover:bg-[#222222]"
+                    >
+                      <span>Next piece</span>
+                      <ArrowRight className="h-3 w-3" aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <CodeBlock
+                code={visibleSolutionLines.join('\n')}
+                language={activeTrack.language}
+                compact
+              />
+            </div>
+          )}
+
           {delimiterWarnings.length > 0 && (
             <div
               role="status"
-              className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-950 dark:border-amber-600/70 dark:bg-[#202020] dark:text-amber-300"
+              className="flex items-start gap-2 rounded-xl border-l-2 border-amber-500 bg-slate-50 p-3.5 text-xs text-amber-800 dark:bg-[#141414] dark:text-amber-300"
             >
               <AlertCircle
-                className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400"
+                className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400"
                 aria-hidden="true"
               />
               <span>{delimiterWarnings[0]}</span>
@@ -973,10 +1105,10 @@ export function WorkbenchView({
           {evalError && (
             <div
               role="alert"
-              className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-xs text-red-800 dark:border-red-800/80 dark:bg-[#202020] dark:text-red-300"
+              className="flex items-start gap-2 rounded-xl border-l-2 border-rose-500 bg-slate-50 p-3.5 text-xs text-rose-700 dark:bg-[#141414] dark:text-rose-300"
             >
               <AlertCircle
-                className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400"
+                className="mt-0.5 h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400"
                 aria-hidden="true"
               />
               <span>{evalError}</span>
@@ -985,41 +1117,52 @@ export function WorkbenchView({
 
           {evaluation && (
             <div
-              className={`space-y-3 rounded-2xl border-2 p-5 ${
-                evaluation.passed
-                  ? 'border-emerald-300 bg-emerald-50/70 dark:border-emerald-600/80 dark:bg-[#202020]'
-                  : 'border-amber-300 bg-amber-50/70 dark:border-amber-600/80 dark:bg-[#202020]'
+              className={`animate-accomplish-pop space-y-3 rounded-xl border-l-2 bg-slate-50 p-4 dark:bg-[#141414] ${
+                evaluation.passed ? 'border-emerald-500' : 'border-amber-500'
               }`}
             >
-              <div className="flex items-center gap-2">
-                {evaluation.passed ? (
-                  <CheckCircle2
-                    className="h-5 w-5 text-emerald-600 dark:text-emerald-400"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <AlertCircle
-                    className="h-5 w-5 text-amber-700 dark:text-amber-400"
-                    aria-hidden="true"
-                  />
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  {evaluation.passed ? (
+                    <CheckCircle2
+                      className="h-5 w-5 text-emerald-600 dark:text-emerald-400"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <AlertCircle
+                      className="h-5 w-5 text-amber-600 dark:text-amber-400"
+                      aria-hidden="true"
+                    />
+                  )}
+                  <span
+                    className={`text-sm font-bold ${
+                      evaluation.passed
+                        ? 'text-emerald-700 dark:text-emerald-400'
+                        : 'text-amber-700 dark:text-amber-400'
+                    }`}
+                  >
+                    {evaluation.passed ? 'Lesson mastered' : evaluation.verdictLabel}
+                  </span>
+                </div>
+
+                {evaluation.passed && nextModule && isNextModuleUnlocked && (
+                  <button
+                    type="button"
+                    onClick={() => onSelectModule(nextModule.id)}
+                    className="btn-juice inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 text-xs font-semibold text-white hover:bg-emerald-700"
+                  >
+                    <span>Next Module</span>
+                    <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
                 )}
-                <span
-                  className={`text-sm font-bold ${
-                    evaluation.passed
-                      ? 'text-emerald-950 dark:text-emerald-300'
-                      : 'text-amber-950 dark:text-amber-300'
-                  }`}
-                >
-                  {evaluation.verdictLabel}
-                </span>
               </div>
 
-              <p className="text-sm leading-relaxed text-slate-800 dark:text-neutral-200">
+              <p className="text-sm leading-relaxed text-slate-700 dark:text-neutral-200">
                 {evaluation.feedback}
               </p>
 
               {evaluation.syntaxIssues.length > 0 && (
-                <ul className="list-disc space-y-1 pl-5 text-xs text-red-800 dark:text-red-300">
+                <ul className="list-disc space-y-1 pl-5 text-xs text-rose-700 dark:text-rose-300">
                   {evaluation.syntaxIssues.map((issue, idx) => (
                     <li key={idx}>{issue}</li>
                   ))}
@@ -1040,20 +1183,20 @@ export function WorkbenchView({
           <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 dark:border-neutral-800 sm:flex-row sm:items-center sm:justify-between">
             <button
               type="button"
-              onClick={() => setLessonStep('recall')}
-              className="btn-juice inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-200 dark:hover:bg-[#262626]"
+              onClick={() => navigateLessonStep('recall')}
+              className="btn-juice inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-700 hover:border-slate-300 dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-200 dark:hover:text-white"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-              <span>Recall Drills</span>
+              <span>Recall</span>
             </button>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
               {(evaluation?.passed || isModuleCompleted) && nextModule && (
                 isNextModuleUnlocked ? (
                   <button
                     type="button"
                     onClick={() => onSelectModule(nextModule.id)}
-                    className="btn-juice group inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-emerald-600 bg-emerald-600 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-700"
+                    className="btn-juice group inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white hover:bg-emerald-700"
                   >
                     <span>Next Module</span>
                     <ArrowRight
@@ -1062,7 +1205,7 @@ export function WorkbenchView({
                     />
                   </button>
                 ) : (
-                  <span className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500 dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-400">
+                  <span className="inline-flex items-center gap-1.5 px-2 text-xs font-medium text-slate-500 dark:text-neutral-400">
                     <Lock className="h-3.5 w-3.5" aria-hidden="true" />
                     <span>Complete module to unlock next</span>
                   </span>
@@ -1073,10 +1216,10 @@ export function WorkbenchView({
                 <button
                   type="button"
                   onClick={onBackToPath}
-                  className="btn-juice inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border-b-2 border-amber-700 bg-amber-500 px-5 py-3 text-sm font-bold text-white hover:bg-amber-600"
+                  className="btn-juice inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-amber-500 px-5 text-sm font-semibold text-white hover:bg-amber-600"
                 >
                   <Award className="h-4 w-4" aria-hidden="true" />
-                  <span>Track Complete · Claim Certificate</span>
+                  <span>Claim Certificate</span>
                 </button>
               )}
 
@@ -1084,7 +1227,7 @@ export function WorkbenchView({
                 type="button"
                 onClick={handleGeminiReview}
                 disabled={isEvaluating}
-                className="btn-juice inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border-b-2 border-blue-800 bg-blue-600 px-6 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60"
+                className="btn-juice inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isEvaluating ? (
                   <>
@@ -1103,10 +1246,11 @@ export function WorkbenchView({
         </section>
       )}
 
+      {/* Stage 4: Tutor */}
       {lessonStep === 'tutor' && (
         <section
           key="tutor"
-          className="animate-view-enter space-y-6 rounded-2xl border border-slate-200 bg-white p-6 dark:border-neutral-800 dark:bg-[#181818] sm:p-8"
+          className={`${transitionClass} space-y-5 rounded-2xl border border-slate-200/80 bg-white p-6 dark:border-neutral-800 dark:bg-[#181818] sm:p-8`}
         >
           <div className="border-b border-slate-100 pb-4 dark:border-neutral-800">
             <h1 className="font-display text-2xl font-bold text-slate-950 dark:text-white">
@@ -1125,7 +1269,7 @@ export function WorkbenchView({
                   type="button"
                   onClick={() => submitTutorQuestion(prompt)}
                   disabled={isAskingTutor}
-                  className="btn-juice rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-medium text-slate-700 hover:border-blue-500 hover:text-blue-700 dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-200 dark:hover:border-blue-400 dark:hover:text-blue-400"
+                  className="btn-juice cursor-pointer rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-medium text-slate-700 hover:border-blue-500 hover:text-blue-700 dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-200 dark:hover:border-blue-400 dark:hover:text-blue-400"
                 >
                   {prompt}
                 </button>
@@ -1163,17 +1307,17 @@ export function WorkbenchView({
           {tutorError && (
             <div
               role="alert"
-              className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs text-red-800 dark:border-red-800/80 dark:bg-[#202020] dark:text-red-300"
+              className="flex items-start gap-2 rounded-xl border-l-2 border-rose-500 bg-slate-50 p-3.5 text-xs text-rose-700 dark:bg-[#141414] dark:text-rose-300"
             >
               <AlertCircle
-                className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400"
+                className="mt-0.5 h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400"
                 aria-hidden="true"
               />
               <span>{tutorError}</span>
             </div>
           )}
 
-          <form onSubmit={handleAskTutor} className="flex flex-col gap-3 sm:flex-row">
+          <form onSubmit={handleAskTutor} className="flex flex-col gap-2.5 sm:flex-row">
             <label htmlFor="tutor-question-input" className="sr-only">
               Ask a syntax question about {activeModule.title}
             </label>
@@ -1183,12 +1327,12 @@ export function WorkbenchView({
               value={tutorInput}
               onChange={(e) => setTutorInput(e.target.value)}
               placeholder={`Ask about ${langMeta.name} syntax...`}
-              className="min-h-12 flex-1 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none dark:border-neutral-700 dark:bg-[#202020] dark:text-white dark:placeholder:text-neutral-500 dark:focus:border-blue-500"
+              className="h-11 flex-1 rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-600 focus:outline-none dark:border-neutral-700 dark:bg-[#202020] dark:text-white dark:placeholder:text-neutral-500 dark:focus:border-blue-500"
             />
             <button
               type="submit"
               disabled={isAskingTutor || !tutorInput.trim()}
-              className="btn-juice inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border-b-2 border-slate-950 bg-slate-900 px-5 py-2.5 text-sm font-bold text-white hover:bg-slate-800 disabled:opacity-50 whitespace-nowrap dark:border-blue-800 dark:bg-blue-600 dark:hover:bg-blue-700"
+              className="btn-juice inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap dark:bg-blue-600 dark:hover:bg-blue-700"
             >
               {isAskingTutor ? (
                 <>
@@ -1207,10 +1351,10 @@ export function WorkbenchView({
           <div className="flex items-center justify-between border-t border-slate-100 pt-4 dark:border-neutral-800">
             <button
               type="button"
-              onClick={() => setLessonStep('practice')}
-              className="btn-juice inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-200 dark:hover:bg-[#262626]"
+              onClick={() => navigateLessonStep('practice')}
+              className="btn-juice inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-700 hover:border-slate-300 dark:border-neutral-700 dark:bg-[#202020] dark:text-neutral-200 dark:hover:text-white"
             >
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
               <span>Challenge</span>
             </button>
 
@@ -1218,11 +1362,11 @@ export function WorkbenchView({
               <button
                 type="button"
                 onClick={() => onSelectModule(nextModule.id)}
-                className="btn-juice group inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700"
+                className="btn-juice group inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-lg bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700"
               >
                 <span>Next Module</span>
                 <ArrowRight
-                  className="h-4 w-4 transition-transform duration-150 group-hover:translate-x-0.5"
+                  className="h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-0.5"
                   aria-hidden="true"
                 />
               </button>
@@ -1230,15 +1374,25 @@ export function WorkbenchView({
               <button
                 type="button"
                 onClick={onBackToPath}
-                className="btn-juice inline-flex min-h-11 items-center gap-1.5 rounded-xl border-b-2 border-amber-700 bg-amber-500 px-4 py-2 text-xs font-bold text-white hover:bg-amber-600"
+                className="btn-juice inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-lg bg-amber-500 px-4 text-xs font-semibold text-white hover:bg-amber-600"
               >
-                <Award className="h-4 w-4" aria-hidden="true" />
-                <span>Track Complete · Claim Certificate</span>
+                <Award className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Claim Certificate</span>
               </button>
             ) : null}
           </div>
         </section>
       )}
+
+      <ConfirmDialog
+        isOpen={resetConfirmOpen}
+        title="Reset editor code?"
+        description="Your current code edits for this challenge will be replaced with the starter template."
+        confirmLabel="Reset Code"
+        tone="danger"
+        onCancel={() => setResetConfirmOpen(false)}
+        onConfirm={handleResetEditorConfirmed}
+      />
     </div>
   );
 }

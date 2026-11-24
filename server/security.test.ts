@@ -8,13 +8,19 @@ import {
 import {
   buildContentSecurityPolicy,
   clampString,
+  hashOpaqueUserId,
   isAllowedOrigin,
   sanitizeDateKey,
   sanitizeReferenceCategory,
   sanitizeStringArray,
   sanitizeTutorHistory,
   SlidingWindowRateLimiter,
+  validateImageMagicBytes,
 } from './security.ts';
+import {
+  releaseUserDailyQuota,
+  reserveUserDailyQuota,
+} from './store.ts';
 import { resolveFirebaseClientConfig } from '../src/utils/firebaseConfig.ts';
 
 test('resolveFirebaseClientConfig prefers VITE_FIREBASE_* env vars over fallback JSON', () => {
@@ -156,4 +162,50 @@ test('input sanitizers bound strings, arrays, tutor history, dates, and CSP', ()
   const csp = buildContentSecurityPolicy("'self'");
   assert.match(csp, /frame-ancestors 'self'/);
   assert.match(csp, /object-src 'none'/);
+});
+
+test('validateImageMagicBytes accepts valid PNG/JPEG/WebP and rejects spoofed payloads', () => {
+  const validPng = Buffer.from([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+  ]).toString('base64');
+  assert.equal(validateImageMagicBytes(validPng, 'image/png', 1024).valid, true);
+
+  const validJpeg = Buffer.from([
+    0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01,
+  ]).toString('base64');
+  assert.equal(validateImageMagicBytes(validJpeg, 'image/jpeg', 1024).valid, true);
+
+  const validWebp = Buffer.from([
+    0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50,
+  ]).toString('base64');
+  assert.equal(validateImageMagicBytes(validWebp, 'image/webp', 1024).valid, true);
+
+  const spoofedHtml = Buffer.from('<script>alert(1)</script>').toString('base64');
+  assert.equal(validateImageMagicBytes(spoofedHtml, 'image/png', 1024).valid, false);
+  assert.equal(validateImageMagicBytes(spoofedHtml, 'image/jpeg', 1024).valid, false);
+  assert.equal(validateImageMagicBytes('not!valid!base64!', 'image/png', 1024).valid, false);
+  assert.equal(validateImageMagicBytes(validPng, 'image/png', 8).valid, false);
+});
+
+test('hashOpaqueUserId masks internal Firebase UIDs deterministically', () => {
+  const masked = hashOpaqueUserId('real-firebase-uid-123');
+  assert.ok(masked.startsWith('learner-'));
+  assert.notEqual(masked, 'real-firebase-uid-123');
+  assert.equal(masked, hashOpaqueUserId('real-firebase-uid-123'));
+});
+
+test('reserveUserDailyQuota prevents concurrent quota race bypass and releases cleanly on error', async () => {
+  const uid = `race-test-${Date.now()}`;
+  const first = await reserveUserDailyQuota(uid);
+  assert.equal(first.reserved, true);
+  assert.equal(first.inFlight, false);
+
+  const concurrent = await reserveUserDailyQuota(uid);
+  assert.equal(concurrent.reserved, false);
+  assert.equal(concurrent.inFlight, true);
+
+  releaseUserDailyQuota(uid, first.todayKey);
+  const retry = await reserveUserDailyQuota(uid);
+  assert.equal(retry.reserved, true);
+  releaseUserDailyQuota(uid, retry.todayKey);
 });

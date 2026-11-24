@@ -98,7 +98,7 @@ export async function getUserDailyQuota(
 ): Promise<{ allowed: boolean; remainingToday: number; todayKey: string }> {
   const todayKey = resolveSafeDateKey(clientDateKey);
   const map = await readQuotas();
-  const record = map[uid];
+  const record = Object.hasOwn(map, uid) ? map[uid] : undefined;
   const used = record && record.dateKey === todayKey ? record.count : 0;
   const remainingToday = Math.max(0, 1 - used);
   return {
@@ -108,13 +108,49 @@ export async function getUserDailyQuota(
   };
 }
 
+const inFlightQuotaKeys = new Set<string>();
+
+/**
+ * Atomically checks and reserves a user's daily generation slot before AI work starts,
+ * preventing concurrent requests from bypassing the 1/day limit.
+ */
+export function reserveUserDailyQuota(
+  uid: string,
+  clientDateKey?: string,
+): Promise<{
+  reserved: boolean;
+  inFlight: boolean;
+  todayKey: string;
+  remainingToday: number;
+}> {
+  return withQuotaLock((map) => {
+    const todayKey = resolveSafeDateKey(clientDateKey);
+    const flightKey = `${uid}:${todayKey}`;
+    const existing = Object.hasOwn(map, uid) ? map[uid] : undefined;
+    const used = existing && existing.dateKey === todayKey ? existing.count : 0;
+    if (used >= 1) {
+      return { reserved: false, inFlight: false, todayKey, remainingToday: 0 };
+    }
+    if (inFlightQuotaKeys.has(flightKey)) {
+      return { reserved: false, inFlight: true, todayKey, remainingToday: 0 };
+    }
+    inFlightQuotaKeys.add(flightKey);
+    return { reserved: true, inFlight: false, todayKey, remainingToday: 1 };
+  });
+}
+
+export function releaseUserDailyQuota(uid: string, todayKey: string): void {
+  inFlightQuotaKeys.delete(`${uid}:${todayKey}`);
+}
+
 export function consumeUserDailyQuota(
   uid: string,
   clientDateKey?: string,
 ): Promise<{ dateKey: string; count: number; remainingToday: number }> {
   return withQuotaLock((map) => {
     const todayKey = resolveSafeDateKey(clientDateKey);
-    const existing = map[uid];
+    inFlightQuotaKeys.delete(`${uid}:${todayKey}`);
+    const existing = Object.hasOwn(map, uid) ? map[uid] : undefined;
     const currentCount = existing && existing.dateKey === todayKey ? existing.count : 0;
     const nextCount = Math.min(1, currentCount + 1);
     map[uid] = { dateKey: todayKey, count: nextCount };

@@ -197,14 +197,21 @@ export function securityHeadersMiddleware(options: {
   };
 }
 
-export function apiCorsMiddleware(configuredOrigins: string[]) {
+export function apiCorsMiddleware(
+  configuredOrigins: string[],
+  _options?: { trustProxy?: boolean | number },
+) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const origin =
       typeof req.headers.origin === 'string' ? req.headers.origin : undefined;
+    // Never trust client-injectable X-Forwarded-Host for CORS origin matching;
+    // rely strictly on validated Host header and explicit configuredOrigins.
+    const rawHost = req.headers.host;
     const host =
-      typeof req.headers['x-forwarded-host'] === 'string'
-        ? req.headers['x-forwarded-host'].split(',')[0]
-        : req.headers.host;
+      typeof rawHost === 'string' &&
+      /^[a-zA-Z0-9.-]+(?::\d{1,5})?$/.test(rawHost.trim())
+        ? rawHost.trim()
+        : undefined;
 
     if (origin) {
       if (!isAllowedOrigin(origin, host, configuredOrigins)) {
@@ -277,4 +284,92 @@ export function sanitizeDateKey(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
   const trimmed = value.trim();
   return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : undefined;
+}
+
+export interface ImageValidationResult {
+  valid: boolean;
+  byteLength: number;
+  error?: string;
+}
+
+/**
+ * Verifies base64 encoding, decoded byte size, and actual binary magic bytes
+ * for PNG, JPEG, and WebP images to prevent spoofed MIME payloads.
+ */
+export function validateImageMagicBytes(
+  rawBase64: string,
+  mimeType: string,
+  maxBytes: number,
+): ImageValidationResult {
+  const cleaned = rawBase64.replace(/\s+/g, '');
+  if (!cleaned || !/^[A-Za-z0-9+/]+={0,2}$/.test(cleaned)) {
+    return { valid: false, byteLength: 0, error: 'Invalid base64 image payload.' };
+  }
+
+  let buf: Buffer;
+  try {
+    buf = Buffer.from(cleaned, 'base64');
+  } catch {
+    return { valid: false, byteLength: 0, error: 'Unable to decode image payload.' };
+  }
+
+  if (buf.length < 12) {
+    return { valid: false, byteLength: buf.length, error: 'Uploaded image file is corrupted or empty.' };
+  }
+  if (buf.length > maxBytes) {
+    return { valid: false, byteLength: buf.length, error: 'Uploaded screenshot must be 4 MB or smaller.' };
+  }
+
+  if (mimeType === 'image/png') {
+    const isPng =
+      buf[0] === 0x89 &&
+      buf[1] === 0x50 &&
+      buf[2] === 0x4e &&
+      buf[3] === 0x47 &&
+      buf[4] === 0x0d &&
+      buf[5] === 0x0a &&
+      buf[6] === 0x1a &&
+      buf[7] === 0x0a;
+    return isPng
+      ? { valid: true, byteLength: buf.length }
+      : { valid: false, byteLength: buf.length, error: 'File contents do not match a valid PNG image.' };
+  }
+
+  if (mimeType === 'image/jpeg') {
+    const isJpeg = buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff;
+    return isJpeg
+      ? { valid: true, byteLength: buf.length }
+      : { valid: false, byteLength: buf.length, error: 'File contents do not match a valid JPEG image.' };
+  }
+
+  if (mimeType === 'image/webp') {
+    const isRiff =
+      buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46;
+    const isWebp =
+      buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50;
+    return isRiff && isWebp
+      ? { valid: true, byteLength: buf.length }
+      : { valid: false, byteLength: buf.length, error: 'File contents do not match a valid WebP image.' };
+  }
+
+  return {
+    valid: false,
+    byteLength: buf.length,
+    error: 'Only PNG, JPEG, or WebP screenshots are supported.',
+  };
+}
+
+export function hashOpaqueUserId(uid: string): string {
+  // Deterministic non-reversible public handle derived from UID (never exposes raw Firebase UID)
+  let h1 = 0x811c9dc5;
+  let h2 = 0x01000193;
+  const salted = `recurry-public-lb:${uid}`;
+  for (let i = 0; i < salted.length; i += 1) {
+    const ch = salted.charCodeAt(i);
+    h1 ^= ch;
+    h1 = Math.imul(h1, 0x01000193) >>> 0;
+    h2 ^= ch + (i & 0xff);
+    h2 = Math.imul(h2, 0x85ebca6b) >>> 0;
+  }
+  return `learner-${h1.toString(16).padStart(8, '0')}${h2.toString(16).padStart(8, '0')}`;
 }

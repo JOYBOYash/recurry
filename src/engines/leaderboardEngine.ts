@@ -1,7 +1,11 @@
 import type { LanguageId, SkillLevel } from '../types/curriculum';
 import { computeStreakMetrics, toLocalDateKey } from './streaksEngine';
 
-export type LeaderboardSortMetric = 'weekly_streak' | 'module_volume';
+export type LeaderboardSortMetric =
+  | 'weekly_streak'
+  | 'module_volume'
+  | 'daily_streak'
+  | 'completed_curricula';
 
 export interface LeaderboardEntry {
   uid: string;
@@ -12,6 +16,7 @@ export interface LeaderboardEntry {
   currentStreak: number;
   weeklyModulesCompleted: number; // modules/drills logged in rolling 7-day window
   totalModulesCompleted: number;
+  completedCurriculaCount?: number;
   updatedAt: string;
 }
 
@@ -35,6 +40,24 @@ export interface LeaderboardComparisonSummary {
   weeklyModulesLeaderGap: number;
   averageWeeklyActiveDays: number;
   averageWeeklyModules: number;
+}
+
+export function countCompletedCurricula(
+  tracks: Array<{ modules: Array<{ id: string }> }>,
+  completedModuleIds: string[],
+  certificatesCount: number = 0,
+): number {
+  const completedSet = new Set(completedModuleIds);
+  let completedTracks = 0;
+  for (const track of tracks) {
+    if (
+      track.modules.length > 0 &&
+      track.modules.every((mod) => completedSet.has(mod.id))
+    ) {
+      completedTracks += 1;
+    }
+  }
+  return Math.max(completedTracks, Math.max(0, Math.round(certificatesCount)));
 }
 
 export function computeWeeklyLearnerMetrics(
@@ -79,7 +102,30 @@ export function sortLeaderboardEntries(
   currentUid?: string | null,
 ): RankedLeaderboardRow[] {
   const sorted = [...entries].sort((a, b) => {
-    if (metric === 'weekly_streak') {
+    const aCurricula = Math.max(0, Math.round(Number(a.completedCurriculaCount) || 0));
+    const bCurricula = Math.max(0, Math.round(Number(b.completedCurriculaCount) || 0));
+
+    if (metric === 'daily_streak') {
+      if (b.currentStreak !== a.currentStreak) {
+        return b.currentStreak - a.currentStreak;
+      }
+      if (bCurricula !== aCurricula) {
+        return bCurricula - aCurricula;
+      }
+      if (b.totalModulesCompleted !== a.totalModulesCompleted) {
+        return b.totalModulesCompleted - a.totalModulesCompleted;
+      }
+    } else if (metric === 'completed_curricula') {
+      if (bCurricula !== aCurricula) {
+        return bCurricula - aCurricula;
+      }
+      if (b.currentStreak !== a.currentStreak) {
+        return b.currentStreak - a.currentStreak;
+      }
+      if (b.totalModulesCompleted !== a.totalModulesCompleted) {
+        return b.totalModulesCompleted - a.totalModulesCompleted;
+      }
+    } else if (metric === 'weekly_streak') {
       if (b.weeklyActiveDays !== a.weeklyActiveDays) {
         return b.weeklyActiveDays - a.weeklyActiveDays;
       }
@@ -110,6 +156,10 @@ export function sortLeaderboardEntries(
 
   return sorted.map((entry, index) => ({
     ...entry,
+    completedCurriculaCount: Math.max(
+      0,
+      Math.round(Number(entry.completedCurriculaCount) || 0),
+    ),
     position: index + 1,
     isCurrentUser: Boolean(currentUid && entry.uid === currentUid),
   }));
